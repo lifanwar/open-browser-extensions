@@ -841,7 +841,8 @@ function formatConversationTime(timestamp) {
 
 function scrollChatToBottom() {
   requestAnimationFrame(() => {
-    chat.scrollTop = chat.scrollHeight;
+    const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 100;
+    if (atBottom) chat.scrollTop = chat.scrollHeight;
   });
 }
 
