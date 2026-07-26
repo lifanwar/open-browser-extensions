@@ -23,14 +23,18 @@
 - Initial clean-source browser agent.
 
 ## 1.3.0
-- Added current-page cookie tools: list/export regular cookies, create/update, JSON import, delete one, and delete all.
+- Added current-page cookie tools: list/export cookies, create/update, JSON import, delete one, and delete all.
 - Added `cookies` permission and a Settings switch for cookie write operations.
 - Cookie operations are scoped to the active page host.
-- HttpOnly and authentication/session/token-like cookie values are redacted and cannot be imported.
-
 
 ## 1.3.1
 - Fixed API runs when Allow cookie paste/delete is disabled by omitting unavailable cookie-write schemas from the request.
 - Made the cookies_set function schema strict for broader OpenAI-compatible provider support.
 - Rebuilt Settings as a fixed header/footer dialog with an independently scrolling body.
 - Fixed switch focus positioning that could jump the Settings panel and leave a blank area.
+
+## 1.3.2
+- Removed all cookie value redaction: HttpOnly and auth/session/token cookies are now fully readable and exportable.
+- Removed import restrictions: HttpOnly cookies, auth cookies, and cross-domain cookies are no longer rejected. Max 100 limit removed.
+- Removed delete-all confirmation requirement.
+- Added markdown pipe table rendering with horizontal scroll wrapper.
