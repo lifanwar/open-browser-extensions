@@ -70,6 +70,21 @@ async function init() {
   renderChat();
   renderConversationList();
   resizePrompt();
+
+  // Copy button delegation on code blocks
+  chat.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".copy-button");
+    if (!btn) return;
+    const pre = btn.closest("pre");
+    if (!pre) return;
+    const code = pre.querySelector("code")?.textContent || pre.textContent;
+    try {
+      await navigator.clipboard.writeText(code);
+      btn.textContent = "Copied!";
+      btn.classList.add("copied");
+      setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
+    } catch { btn.textContent = "Failed"; }
+  });
 }
 
 composer.addEventListener("submit", async (event) => {
@@ -640,7 +655,8 @@ function renderMarkdown(target, markdown) {
   const codeBlocks = [];
   let escaped = escapeHtml(raw).replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, language, code) => {
     const index = codeBlocks.length;
-    codeBlocks.push(`<pre><code data-language="${escapeHtml(language.trim())}">${code.replace(/^\n|\n$/g, "")}</code></pre>`);
+    const lang = escapeHtml(language.trim());
+    codeBlocks.push(`<pre><code data-language="${lang}">${code.replace(/^\n|\n$/g, "")}</code><button class="copy-button">Copy</button></pre>`);
     return `@@CODEBLOCK_${index}@@`;
   });
 
@@ -713,23 +729,6 @@ function renderMarkdown(target, markdown) {
   html = html.replace(/@@TABLEBLOCK_(\d+)@@/g, (_, index) => tableBlocks[Number(index)] || "");
   target.innerHTML = html;
 
-  // Copy button on code blocks
-  target.querySelectorAll("pre").forEach((pre) => {
-    if (pre.querySelector(".copy-button")) return;
-    const btn = document.createElement("button");
-    btn.className = "copy-button";
-    btn.textContent = "Copy";
-    btn.addEventListener("click", async () => {
-      const code = pre.querySelector("code")?.textContent || pre.textContent;
-      try {
-        await navigator.clipboard.writeText(code);
-        btn.textContent = "Copied!";
-        btn.classList.add("copied");
-        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
-      } catch { btn.textContent = "Failed"; }
-    });
-    pre.append(btn);
-  });
 }
 
 function renderTableHtml(markdown) {
