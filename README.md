@@ -36,7 +36,7 @@ When streaming is enabled, the request contains `stream: true`. Providers may em
 
 ## Reasoning display
 
-The extension displays only reasoning/thinking text returned by the configured provider. It does not invent or extract hidden reasoning. Stored reasoning is collapsed by default behind **Show reasoning**.
+The extension displays only reasoning/thinking text returned by the configured provider. It does not invent or extract hidden reasoning. Model steps and tool calls are shown in an expandable activity timeline attached to the assistant message.
 
 ## Privacy
 

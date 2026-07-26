@@ -151,7 +151,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
-assert.equal(manifest.version, "1.3.1");
+assert.equal(manifest.version, "1.3.3");
 assert.equal(manifest.background.type, "module");
 assert.ok(manifest.permissions.includes("debugger"));
 assert.ok(manifest.permissions.includes("sidePanel"));
@@ -166,9 +166,16 @@ for (const id of ["conversationDrawer", "newConversationButton", "conversationLi
   assert.ok(sidepanelHtml.includes(`id="${id}"`), `Missing UI ${id}`);
 }
 const sidepanelJs = fs.readFileSync(path.join(root, "sidepanel/app.js"), "utf8");
-assert.ok(sidepanelJs.includes("Show reasoning"));
-assert.ok(sidepanelJs.includes("agentConversations"));
+assert.ok(sidepanelJs.includes("Thought process"));
+assert.ok(sidepanelJs.includes("agent-timeline"));
+assert.ok(sidepanelJs.includes("tool_start"));
 assert.ok(sidepanelJs.includes("reasoning_delta"));
+assert.ok(sidepanelJs.includes("agentConversations"));
+assert.ok(!sidepanelHtml.includes('id="activityShell"'));
+
+const agentSource = fs.readFileSync(path.join(root, "background/agent.js"), "utf8");
+assert.ok(agentSource.includes('emit("step_start"'));
+assert.ok(agentSource.includes("toolCallId"));
 
 const requiredFiles = [
   "background/service-worker.js",
