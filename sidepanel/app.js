@@ -652,6 +652,15 @@ function renderMarkdown(target, markdown) {
     .replace(/`([^`\n]+)`/g, "<code>$1</code>")
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
 
+  // Extract markdown tables (pipe tables) — wrap in scrollable container.
+  // Runs after inline formatting so **bold**, `code`, [links] work inside cells.
+  const tableBlocks = [];
+  escaped = escaped.replace(/^(\s*\|[^\n]+\n\s*\|[:\-| ]+\n(?:\s*\|[^\n]*\n?)*)/gm, (match) => {
+    const index = tableBlocks.length;
+    tableBlocks.push(renderTableHtml(match));
+    return `@@TABLEBLOCK_${index}@@`;
+  });
+
   const lines = escaped.split("\n");
   const output = [];
   let listType = null;
@@ -669,7 +678,7 @@ function renderMarkdown(target, markdown) {
   };
 
   for (const line of lines) {
-    if (/^@@CODEBLOCK_\d+@@$/.test(line) || /^<h[1-3]>/.test(line)) {
+    if (/^@@(?:CODEBLOCK|TABLEBLOCK)_\d+@@$/.test(line) || /^<h[1-3]>/.test(line)) {
       flushParagraph();
       closeList();
       output.push(line);
@@ -701,7 +710,57 @@ function renderMarkdown(target, markdown) {
 
   let html = output.join("");
   html = html.replace(/@@CODEBLOCK_(\d+)@@/g, (_, index) => codeBlocks[Number(index)] || "");
+  html = html.replace(/@@TABLEBLOCK_(\d+)@@/g, (_, index) => tableBlocks[Number(index)] || "");
   target.innerHTML = html;
+
+  // Copy button on code blocks
+  target.querySelectorAll("pre").forEach((pre) => {
+    if (pre.querySelector(".copy-button")) return;
+    const btn = document.createElement("button");
+    btn.className = "copy-button";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      const code = pre.querySelector("code")?.textContent || pre.textContent;
+      try {
+        await navigator.clipboard.writeText(code);
+        btn.textContent = "Copied!";
+        btn.classList.add("copied");
+        setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
+      } catch { btn.textContent = "Failed"; }
+    });
+    pre.append(btn);
+  });
+}
+
+function renderTableHtml(markdown) {
+  const lines = markdown.trim().split("\n").map((l) => l.trim());
+  const headers = lines[0].split("|").map((c) => c.trim()).filter(Boolean);
+  const alignRow = lines[1].split("|").map((c) => c.trim()).filter(Boolean);
+  const aligns = alignRow.map((cell) => {
+    if (/^:?-+:?$/.test(cell)) {
+      if (cell.startsWith(":") && cell.endsWith(":")) return ' style="text-align:center"';
+      if (cell.endsWith(":")) return ' style="text-align:right"';
+      return "";
+    }
+    return "";
+  });
+  const rows = lines.slice(2).filter((l) => l.trim().startsWith("|"));
+  let html = '<div class="table-wrapper"><table><thead><tr>';
+  headers.forEach((h, i) => {
+    html += `<th${aligns[i] || ""}>${h}</th>`;
+  });
+  html += "</tr></thead><tbody>";
+  rows.forEach((row) => {
+    const cleanCells = row.split("|").slice(1, -1).map((c) => c.trim());
+    if (!cleanCells.length) return;
+    html += "<tr>";
+    cleanCells.forEach((cell, i) => {
+      html += `<td${aligns[i] || ""}>${cell}</td>`;
+    });
+    html += "</tr>";
+  });
+  html += "</tbody></table></div>";
+  return html;
 }
 
 async function loadConversations() {

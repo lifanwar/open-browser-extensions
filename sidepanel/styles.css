@@ -619,6 +619,62 @@ html[data-theme="dark"] .chat::-webkit-scrollbar-thumb,
 html[data-theme="dark"] .tool-activity::-webkit-scrollbar-thumb,
 html[data-theme="dark"] .settings-body::-webkit-scrollbar-thumb { background: #3f3f46; }
 
+/* Table wrapper — horizontal scroll for wide tables */
+.table-wrapper {
+  overflow-x: auto;
+  margin: 10px 0;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.table-wrapper th,
+.table-wrapper td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.table-wrapper th {
+  background: var(--surface);
+  font-weight: 600;
+}
+.table-wrapper tbody tr:last-child td {
+  border-bottom: none;
+}
+html[data-theme="dark"] .table-wrapper th {
+  background: var(--surface-strong);
+}
+
+/* Copy button on code blocks (works in message-content and reasoning-content) */
+.assistant-stack pre {
+  position: relative;
+}
+.copy-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 9px;
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 6px;
+  background: rgba(23,23,23,.65);
+  color: #c4c4cc;
+  font-size: 10.5px;
+  cursor: pointer;
+  opacity: .7;
+  transition: opacity .18s ease, background .18s ease;
+}
+.assistant-stack pre:hover .copy-button { opacity: 1; }
+.copy-button.copied { opacity: 1; }
+.copy-button:hover { background: rgba(23,23,23,.9); color: #f4f4f4; }
+.copy-button.copied { border-color: #22c55e; color: #22c55e; }
+html[data-theme="dark"] .copy-button { background: rgba(255,255,255,.08); color: #a1a1aa; }
+html[data-theme="dark"] .copy-button:hover { background: rgba(255,255,255,.14); color: #f4f4f5; }
+html[data-theme="dark"] .copy-button.copied { border-color: #22c55e; color: #22c55e; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
