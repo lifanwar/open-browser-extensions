@@ -1,11 +1,6 @@
 const chat = document.querySelector("#chat");
 const conversationTitle = document.querySelector("#conversationTitle");
 const headerSubtitle = document.querySelector("#headerSubtitle");
-const activityShell = document.querySelector("#activityShell");
-const activityToggle = document.querySelector("#activityToggle");
-const activityIndicator = document.querySelector("#activityIndicator");
-const activitySummary = document.querySelector("#activitySummary");
-const toolActivity = document.querySelector("#toolActivity");
 const composer = document.querySelector("#composer");
 const promptInput = document.querySelector("#prompt");
 const sendButton = document.querySelector("#sendButton");
@@ -42,7 +37,6 @@ let history = [];
 let settings = null;
 let currentRunId = null;
 let activeTab = null;
-let activityOpen = false;
 let doneEventContent = null;
 let liveDraft = null;
 let liveNodes = null;
@@ -87,7 +81,7 @@ promptInput.addEventListener("keydown", (event) => {
 
 stopButton.addEventListener("click", async () => {
   if (!currentRunId) return;
-  activitySummary.textContent = "Stopping…";
+  headerSubtitle.textContent = "Stopping…";
   await sendMessage({ type: "CANCEL_AGENT", runId: currentRunId }).catch(() => {});
 });
 
@@ -113,12 +107,6 @@ toggleApiKey.addEventListener("click", () => {
 
 pageChip.addEventListener("click", refreshActiveTab);
 
-activityToggle.addEventListener("click", () => {
-  activityOpen = !activityOpen;
-  activityToggle.setAttribute("aria-expanded", String(activityOpen));
-  toolActivity.classList.toggle("hidden", !activityOpen);
-});
-
 settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const next = {
@@ -139,9 +127,9 @@ settingsForm.addEventListener("submit", async (event) => {
   applyAppearance(settings.appearance);
   settingsDialog.close();
   updateChrome();
-  showActivity("Settings saved", false);
+  headerSubtitle.textContent = "Settings saved";
   setTimeout(() => {
-    if (!currentRunId) hideActivity();
+    if (!currentRunId) headerSubtitle.textContent = activeTabSubtitle();
   }, 1300);
 });
 
@@ -152,14 +140,19 @@ chrome.runtime.onMessage.addListener((message) => {
   if (event === "status") {
     const status = String(payload || "Working…");
     headerSubtitle.textContent = status;
-    showActivity(status, true);
+    updateCurrentThinkingLabel(status);
+  }
+
+  if (event === "step_start") {
+    ensureLiveAssistantRow();
+    ensureThinkingActivity(payload?.step || 1, "Thinking…");
   }
 
   if (event === "reasoning_delta") {
     ensureLiveAssistantRow();
-    liveDraft.reasoning += String(payload?.delta || "");
-    updateLiveReasoning();
-    activitySummary.textContent = `Reasoning · step ${payload?.step || 1}`;
+    const delta = String(payload?.delta || "");
+    liveDraft.reasoning += delta;
+    appendThinkingDelta(payload?.step || 1, delta);
   }
 
   if (event === "assistant_delta") {
@@ -168,41 +161,42 @@ chrome.runtime.onMessage.addListener((message) => {
     updateLiveContent();
   }
 
-  if (event === "model_step" && Number(payload?.toolCallCount || 0) > 0) {
-    // Intermediate text before a tool call is not the final answer.
-    if (liveDraft?.content) {
+  if (event === "model_step") {
+    completeThinkingActivity(payload?.step || 1);
+    if (Number(payload?.toolCallCount || 0) > 0 && liveDraft?.content) {
+      // Intermediate text before a tool call is not the final answer.
       liveDraft.content = "";
       updateLiveContent();
     }
   }
 
   if (event === "tool_start") {
-    const args = compactArgs(payload.args);
-    appendToolLine(`→ ${payload.name}${args ? ` ${args}` : ""}`, "");
-    activitySummary.textContent = friendlyToolName(payload.name);
+    ensureLiveAssistantRow();
+    completeThinkingActivity(payload?.step || 1);
+    startToolActivity(payload || {});
+    headerSubtitle.textContent = friendlyToolName(payload?.name);
   }
 
   if (event === "tool_result") {
-    appendToolLine(`${payload.ok ? "✓" : "✗"} ${payload.name}: ${payload.result}`, payload.ok ? "success" : "failure");
+    finishToolActivity(payload || {});
   }
 
   if (event === "done") {
     doneEventContent = payload.content;
-    addAssistantMessageOnce(payload.content, payload.reasoning).catch(console.error);
-    activitySummary.textContent = "Completed";
-    activityIndicator.classList.remove("running");
+    finalizeLiveActivities("done");
+    const activities = cloneActivities(liveDraft?.activities);
+    addAssistantMessageOnce(payload.content, payload.reasoning, activities).catch(console.error);
+    headerSubtitle.textContent = "Completed";
   }
 
   if (event === "error") {
+    finalizeLiveActivities("error");
     headerSubtitle.textContent = "API or agent error";
-    activitySummary.textContent = "Something went wrong";
-    activityIndicator.classList.remove("running");
   }
 
   if (event === "cancelled") {
+    finalizeLiveActivities("cancelled");
     headerSubtitle.textContent = "Stopped";
-    activitySummary.textContent = "Stopped";
-    activityIndicator.classList.remove("running");
   }
 });
 
@@ -233,10 +227,11 @@ async function submitPrompt(rawContent) {
 
   currentRunId = crypto.randomUUID();
   doneEventContent = null;
-  liveDraft = { content: "", reasoning: "" };
+  liveDraft = { content: "", reasoning: "", activities: [] };
   liveNodes = null;
-  resetActivity();
   setRunning(true);
+  ensureLiveAssistantRow();
+  ensureThinkingActivity(1, "Thinking…");
 
   try {
     const result = await sendMessage({
@@ -250,13 +245,18 @@ async function submitPrompt(rawContent) {
     }
   } catch (error) {
     const message = normalizeError(error);
-    history.push({ role: "error", content: message, createdAt: Date.now() });
+    finalizeLiveActivities("error");
+    history.push({
+      role: "error",
+      content: message,
+      activities: cloneActivities(liveDraft?.activities),
+      createdAt: Date.now()
+    });
     touchActiveConversation();
     await persistConversations();
     liveDraft = null;
     liveNodes = null;
     renderChat();
-    appendToolLine(`ERROR: ${message}`, "failure");
   } finally {
     currentRunId = null;
     liveDraft = null;
@@ -266,13 +266,19 @@ async function submitPrompt(rawContent) {
   }
 }
 
-async function addAssistantMessageOnce(content, reasoning = "") {
+async function addAssistantMessageOnce(content, reasoning = "", activities = liveDraft?.activities) {
   const text = String(content || "").trim();
   const trace = String(reasoning || liveDraft?.reasoning || "").trim();
   if (!text) return;
   const last = history.at(-1);
   if (last?.role === "assistant" && last.content === text) return;
-  history.push({ role: "assistant", content: text, reasoning: trace, createdAt: Date.now() });
+  history.push({
+    role: "assistant",
+    content: text,
+    reasoning: trace,
+    activities: cloneActivities(activities),
+    createdAt: Date.now()
+  });
   touchActiveConversation();
   await persistConversations();
   liveDraft = null;
@@ -288,8 +294,6 @@ async function startNewChat() {
   activeConversationId = conversation.id;
   history = conversation.messages;
   await persistConversations();
-  resetActivity();
-  hideActivity();
   closeDrawer();
   renderChat();
   renderConversationList();
@@ -307,8 +311,6 @@ async function selectConversation(id) {
   activeConversationId = id;
   history = conversation.messages;
   await persistConversations();
-  resetActivity();
-  hideActivity();
   renderChat();
   renderConversationList();
   updateChrome();
@@ -359,10 +361,21 @@ function createMessageRow(item) {
   if (item.role === "assistant") {
     const stack = document.createElement("div");
     stack.className = "assistant-stack";
-    if (item.reasoning) stack.append(createReasoningPanel(item.reasoning));
+    const timeline = createActivityTimeline(item.activities, item.reasoning);
+    if (timeline) stack.append(timeline);
     const content = document.createElement("div");
     content.className = "message-content";
     renderMarkdown(content, item.content);
+    stack.append(content);
+    row.append(stack);
+  } else if (item.role === "error" && Array.isArray(item.activities) && item.activities.length) {
+    const stack = document.createElement("div");
+    stack.className = "assistant-stack";
+    const timeline = createActivityTimeline(item.activities);
+    if (timeline) stack.append(timeline);
+    const content = document.createElement("div");
+    content.className = "message-content";
+    content.textContent = item.content;
     stack.append(content);
     row.append(stack);
   } else {
@@ -382,56 +395,407 @@ function ensureLiveAssistantRow() {
 
   const stack = document.createElement("div");
   stack.className = "assistant-stack";
-  const reasoningPanel = createReasoningPanel("", true);
-  reasoningPanel.classList.add("hidden");
-  const reasoningBody = reasoningPanel.querySelector(".reasoning-content");
+  const timeline = document.createElement("section");
+  timeline.className = "agent-timeline live-timeline";
+  timeline.setAttribute("aria-label", "Agent activity");
   const answer = document.createElement("div");
-  answer.className = "message-content streaming-content";
-  answer.innerHTML = '<span class="typing-caret" aria-label="Generating"></span>';
-  stack.append(reasoningPanel, answer);
+  answer.className = "message-content streaming-content hidden";
+  stack.append(timeline, answer);
   row.append(stack);
   chat.append(row);
-  liveNodes = { row, stack, reasoningPanel, reasoningBody, answer };
-  updateLiveReasoning();
+  liveNodes = { row, stack, timeline, answer };
+  updateLiveActivities();
   updateLiveContent();
   scrollChatToBottom();
   return liveNodes;
 }
 
-function updateLiveReasoning() {
+function updateLiveActivities() {
   if (!liveDraft || !liveNodes) return;
-  const hasReasoning = Boolean(liveDraft.reasoning.trim());
-  liveNodes.reasoningPanel.classList.toggle("hidden", !hasReasoning);
-  if (hasReasoning) renderMarkdown(liveNodes.reasoningBody, liveDraft.reasoning);
+  renderActivityTimeline(liveNodes.timeline, liveDraft.activities, liveDraft.reasoning, true);
   scrollChatToBottom();
 }
 
 function updateLiveContent() {
   if (!liveDraft || !liveNodes) return;
-  if (liveDraft.content) {
+  const hasContent = Boolean(liveDraft.content);
+  liveNodes.answer.classList.toggle("hidden", !hasContent);
+  if (hasContent) {
     renderMarkdown(liveNodes.answer, liveDraft.content);
     const caret = document.createElement("span");
     caret.className = "typing-caret";
     liveNodes.answer.append(caret);
   } else {
-    liveNodes.answer.innerHTML = '<span class="typing-caret" aria-label="Generating"></span>';
+    liveNodes.answer.replaceChildren();
   }
   scrollChatToBottom();
 }
 
-function createReasoningPanel(reasoning, live = false) {
+function createActivityTimeline(activities, fallbackReasoning = "") {
+  const normalized = normalizeActivities(activities, fallbackReasoning);
+  if (!normalized.length) return null;
+  const timeline = document.createElement("section");
+  timeline.className = "agent-timeline";
+  timeline.setAttribute("aria-label", "Agent activity");
+  renderActivityTimeline(timeline, normalized, fallbackReasoning, false);
+  return timeline;
+}
+
+function renderActivityTimeline(timeline, activities, fallbackReasoning = "", live = false) {
+  const openIds = new Set(
+    [...timeline.querySelectorAll("details[open][data-event-id]")]
+      .map((node) => node.dataset.eventId)
+      .filter(Boolean)
+  );
+  const normalized = normalizeActivities(activities, fallbackReasoning);
+  timeline.replaceChildren();
+  timeline.classList.toggle("hidden", !normalized.length);
+
+  for (const activity of normalized) {
+    const node = activity.type === "tool"
+      ? createToolActivityNode(activity)
+      : createThinkingActivityNode(activity, live);
+    if (openIds.has(activity.id)) node.open = true;
+    timeline.append(node);
+  }
+}
+
+function createThinkingActivityNode(activity, live) {
   const details = document.createElement("details");
-  details.className = `reasoning-panel${live ? " live-reasoning" : ""}`;
+  details.className = `agent-event thinking-event status-${activity.status || "done"}`;
+  details.dataset.eventId = activity.id;
+
   const summary = document.createElement("summary");
-  summary.innerHTML = `${brainSvg()}<span>Show reasoning</span><svg class="reasoning-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>`;
+  const title = document.createElement("span");
+  title.className = "agent-event-title";
+  title.textContent = "Thought process";
+
+  const step = document.createElement("span");
+  step.className = "agent-event-pill";
+  step.textContent = activity.status === "running"
+    ? activity.runningLabel || "Thinking…"
+    : activity.label || `Step ${activity.step || 1}`;
+
+  const state = createActivityState(activity.status);
+  summary.append(createEventIcon("thinking"), title, step, state, chevronSvgNode());
+
   const body = document.createElement("div");
-  body.className = "reasoning-content";
-  if (reasoning) renderMarkdown(body, reasoning);
+  body.className = "agent-event-details reasoning-content";
+  if (activity.content) {
+    renderMarkdown(body, activity.content);
+  } else {
+    const note = document.createElement("p");
+    note.className = "agent-event-note";
+    note.textContent = activity.status === "running" && live
+      ? "Waiting for the model to choose the next action."
+      : "The provider did not return a reasoning trace for this step.";
+    body.append(note);
+  }
+
   details.append(summary, body);
-  details.addEventListener("toggle", () => {
-    summary.querySelector("span").textContent = details.open ? "Hide reasoning" : "Show reasoning";
-  });
   return details;
+}
+
+function createToolActivityNode(activity) {
+  const details = document.createElement("details");
+  details.className = `agent-event tool-event status-${activity.status || "running"}`;
+  details.dataset.eventId = activity.id;
+
+  const presentation = toolPresentation(activity.name, activity.args);
+  const summary = document.createElement("summary");
+  const title = document.createElement("span");
+  title.className = "agent-event-title";
+  title.textContent = presentation.verb;
+
+  const subject = document.createElement("span");
+  subject.className = "agent-event-pill";
+  subject.title = presentation.subject;
+  subject.textContent = presentation.subject;
+
+  summary.append(
+    createEventIcon(activity.name),
+    title,
+    subject,
+    createActivityState(activity.status),
+    chevronSvgNode()
+  );
+
+  const body = document.createElement("div");
+  body.className = "agent-event-details";
+  appendActivityDetail(body, "Tool", activity.name);
+
+  const args = compactArgs(activity.args, 1200, true);
+  if (args) appendActivityDetail(body, "Arguments", args, true);
+
+  if (activity.result) {
+    appendActivityDetail(body, activity.status === "error" ? "Error" : "Result", formatResultPreview(activity.result), true);
+  }
+
+  details.append(summary, body);
+  return details;
+}
+
+function createActivityState(status) {
+  const state = document.createElement("span");
+  state.className = `agent-event-state state-${status || "running"}`;
+  if (status === "running") {
+    state.innerHTML = '<span class="agent-spinner" aria-label="Running"></span>';
+  } else if (status === "error") {
+    state.textContent = "Failed";
+  } else if (status === "cancelled") {
+    state.textContent = "Stopped";
+  } else {
+    state.textContent = "Done";
+  }
+  return state;
+}
+
+function appendActivityDetail(container, label, value, code = false) {
+  const group = document.createElement("div");
+  group.className = "agent-detail-group";
+  const heading = document.createElement("span");
+  heading.className = "agent-detail-label";
+  heading.textContent = label;
+  const content = document.createElement(code ? "pre" : "p");
+  content.textContent = String(value || "");
+  group.append(heading, content);
+  container.append(group);
+}
+
+function normalizeActivities(activities, fallbackReasoning = "") {
+  const items = Array.isArray(activities)
+    ? activities.filter((item) => item && ["thinking", "tool"].includes(item.type)).map((item, index) => ({
+        ...item,
+        id: String(item.id || `${item.type}-${index}`)
+      }))
+    : [];
+  const hasThinkingContent = items.some((item) => item.type === "thinking" && String(item.content || "").trim());
+
+  if (fallbackReasoning && !hasThinkingContent) {
+    items.unshift({
+      id: "legacy-reasoning",
+      type: "thinking",
+      step: 1,
+      label: "Provider reasoning",
+      status: "done",
+      content: String(fallbackReasoning)
+    });
+  }
+  return items;
+}
+
+function ensureThinkingActivity(step = 1, label = "Thinking…", render = true) {
+  if (!liveDraft) return null;
+  const normalizedStep = Number(step) || 1;
+  let activity = liveDraft.activities.find((item) => item.type === "thinking" && item.step === normalizedStep);
+  if (!activity) {
+    activity = {
+      id: `thinking-${normalizedStep}-${Date.now()}`,
+      type: "thinking",
+      step: normalizedStep,
+      label: `Step ${normalizedStep}`,
+      status: "running",
+      content: "",
+      startedAt: Date.now()
+    };
+    liveDraft.activities.push(activity);
+  }
+  if (label) activity.runningLabel = label;
+  if (render) updateLiveActivities();
+  return activity;
+}
+
+function appendThinkingDelta(step, delta) {
+  const activity = ensureThinkingActivity(step, "Thinking…", false);
+  if (!activity) return;
+  activity.content += String(delta || "");
+  activity.status = "running";
+  updateLiveActivities();
+}
+
+function updateCurrentThinkingLabel(label) {
+  if (!liveDraft) return;
+  const current = [...liveDraft.activities].reverse().find((item) => item.type === "thinking" && item.status === "running");
+  if (current) current.runningLabel = String(label || "Thinking…");
+  updateLiveActivities();
+}
+
+function completeThinkingActivity(step) {
+  if (!liveDraft) return;
+  const activity = [...liveDraft.activities].reverse().find((item) =>
+    item.type === "thinking" &&
+    (Number(item.step) === Number(step) || item.status === "running")
+  );
+  if (!activity) return;
+  activity.status = "done";
+  activity.finishedAt = Date.now();
+  updateLiveActivities();
+}
+
+function startToolActivity(payload) {
+  if (!liveDraft) return;
+  const id = String(payload.id || payload.toolCallId || `tool-${Date.now()}-${liveDraft.activities.length}`);
+  const existing = liveDraft.activities.find((item) => item.id === id);
+  const activity = existing || {
+    id,
+    type: "tool",
+    name: String(payload.name || "unknown_tool"),
+    args: sanitizeToolArgs(payload.name, payload.args),
+    step: Number(payload.step || 1),
+    status: "running",
+    startedAt: Date.now()
+  };
+  if (!existing) liveDraft.activities.push(activity);
+  updateLiveActivities();
+}
+
+function finishToolActivity(payload) {
+  if (!liveDraft) return;
+  const id = String(payload.id || payload.toolCallId || "");
+  let activity = id ? liveDraft.activities.find((item) => item.id === id) : null;
+  if (!activity) {
+    activity = [...liveDraft.activities].reverse().find((item) =>
+      item.type === "tool" &&
+      item.status === "running" &&
+      (!payload.name || item.name === payload.name)
+    );
+  }
+  if (!activity) {
+    startToolActivity(payload);
+    activity = liveDraft.activities.at(-1);
+  }
+  activity.status = payload.ok === false ? "error" : "done";
+  activity.result = truncateText(payload.result, 1600);
+  activity.finishedAt = Date.now();
+  updateLiveActivities();
+}
+
+function finalizeLiveActivities(status = "done") {
+  if (!liveDraft) return;
+  for (const activity of liveDraft.activities) {
+    if (activity.status !== "running") continue;
+    activity.status = status === "done" ? "done" : status;
+    activity.finishedAt = Date.now();
+  }
+  updateLiveActivities();
+}
+
+function cloneActivities(activities) {
+  if (!Array.isArray(activities)) return [];
+  return activities.map((activity) => ({
+    id: String(activity.id || crypto.randomUUID()),
+    type: activity.type,
+    step: Number(activity.step || 0) || undefined,
+    label: activity.label ? String(activity.label) : undefined,
+    name: activity.name ? String(activity.name) : undefined,
+    args: activity.args && typeof activity.args === "object" ? structuredCloneSafe(activity.args) : activity.args,
+    status: ["running", "done", "error", "cancelled"].includes(activity.status) ? activity.status : "done",
+    content: truncateText(activity.content, 12000),
+    result: truncateText(activity.result, 1600),
+    startedAt: Number(activity.startedAt || 0) || undefined,
+    finishedAt: Number(activity.finishedAt || 0) || undefined
+  }));
+}
+
+function sanitizeToolArgs(name, args) {
+  if (!args || typeof args !== "object") return {};
+  const clone = structuredCloneSafe(args);
+  const redact = (value, key = "") => {
+    if (value == null) return value;
+    if (/password|secret|token|authorization|api.?key|cookie.*value|cookies_json/i.test(key)) return "[redacted]";
+    if (name === "fill" && key === "text") return `[${String(value).length} characters]`;
+    if (key === "value" && String(name || "").startsWith("cookies_")) return "[redacted]";
+    if (Array.isArray(value)) return value.map((item) => redact(item));
+    if (typeof value === "object") {
+      return Object.fromEntries(Object.entries(value).map(([childKey, childValue]) => [childKey, redact(childValue, childKey)]));
+    }
+    return value;
+  };
+  return redact(clone);
+}
+
+function structuredCloneSafe(value) {
+  try {
+    return structuredClone(value);
+  } catch {
+    try { return JSON.parse(JSON.stringify(value)); } catch { return {}; }
+  }
+}
+
+function truncateText(value, limit = 1200) {
+  if (value == null) return "";
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
+}
+
+function formatResultPreview(value) {
+  const text = truncateText(value, 1600);
+  try {
+    return JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    return text;
+  }
+}
+
+function compactArgs(args, limit = 180, pretty = false) {
+  if (!args || typeof args !== "object" || !Object.keys(args).length) return "";
+  let json;
+  try { json = JSON.stringify(args, null, pretty ? 2 : 0); } catch { return ""; }
+  return json.length > limit ? `${json.slice(0, Math.max(0, limit - 1))}…` : json;
+}
+
+function toolPresentation(name, args = {}) {
+  const currentHost = hostname(activeTab?.url) || "current page";
+  const ref = args?.ref ? `Element ${args.ref}` : "page element";
+  const map = {
+    read_page: ["Read", currentHost],
+    click: ["Clicked", ref],
+    fill: ["Filled", args?.ref ? `Field ${args.ref}` : "form field"],
+    select_option: ["Selected", args?.value || ref],
+    press_key: ["Pressed", args?.key || "keyboard key"],
+    scroll_page: ["Scrolled", args?.direction || "page"],
+    wait: ["Waited", args?.milliseconds ? `${args.milliseconds} ms` : "for page update"],
+    navigate: ["Opened", hostname(args?.url) || args?.url || "page"],
+    list_tabs: ["Read", "browser tabs"],
+    switch_tab: ["Switched", args?.tab_id ? `Tab ${args.tab_id}` : "browser tab"],
+    network_start: ["Started", "Network capture"],
+    network_get: ["Inspected", args?.url_filter || "Network requests"],
+    network_clear: ["Cleared", "Network requests"],
+    network_stop: ["Stopped", "Network capture"],
+    cookies_list: ["Read", "current-page cookies"],
+    cookies_set: ["Saved", args?.cookie?.name || "cookie"],
+    cookies_import: ["Imported", "current-page cookies"],
+    cookies_delete: ["Deleted", args?.name || "cookie"],
+    cookies_delete_all: ["Deleted", "all current-page cookies"]
+  };
+  const [verb, subject] = map[name] || ["Ran", String(name || "tool").replaceAll("_", " ")];
+  return { verb, subject: String(subject || "tool") };
+}
+
+function createEventIcon(name) {
+  const span = document.createElement("span");
+  span.className = "agent-event-icon";
+  span.setAttribute("aria-hidden", "true");
+  span.innerHTML = toolIconSvg(name);
+  return span;
+}
+
+function chevronSvgNode() {
+  const wrapper = document.createElement("span");
+  wrapper.className = "agent-event-chevron";
+  wrapper.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>';
+  return wrapper;
+}
+
+function toolIconSvg(name) {
+  if (name === "thinking") return brainSvg();
+  if (name === "read_page" || name === "list_tabs") return '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h6"/></svg>';
+  if (name === "click") return '<svg viewBox="0 0 24 24"><path d="m5 3 5.7 15.5 2.2-5.6 5.6-2.2L5 3Z"/></svg>';
+  if (name === "fill" || name === "select_option") return '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 9h10M7 13h6"/></svg>';
+  if (name?.startsWith("network_")) return '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6"/><circle cx="18" cy="16" r="3"/></svg>';
+  if (name?.startsWith("cookies_")) return '<svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-7-7 3 3 0 0 0 4 4 3 3 0 0 0 3 3Z"/><path d="M8 13h.01M12 16h.01M10 9h.01"/></svg>';
+  if (name === "navigate" || name === "switch_tab") return '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+  return '<svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>';
 }
 
 function createHomeScreen() {
@@ -519,45 +883,13 @@ function setRunning(running) {
   promptInput.disabled = running;
   stopButton.classList.toggle("hidden", !running);
   sendButton.classList.toggle("hidden", running);
-  activityIndicator.classList.toggle("running", running);
   headerSubtitle.textContent = running ? "Working on the page…" : activeTabSubtitle();
-  if (!running) {
-    activitySummary.textContent = activitySummary.textContent === "Completed" ? "Completed" : "Ready";
-    activityIndicator.classList.remove("running");
-  }
 }
 
 function resizePrompt() {
   promptInput.style.height = "auto";
   promptInput.style.height = `${Math.min(170, Math.max(52, promptInput.scrollHeight))}px`;
   sendButton.disabled = Boolean(currentRunId) || !promptInput.value.trim();
-}
-
-function resetActivity() {
-  toolActivity.replaceChildren();
-  activitySummary.textContent = "Working on the page…";
-  activityOpen = false;
-  activityToggle.setAttribute("aria-expanded", "false");
-  toolActivity.classList.add("hidden");
-}
-
-function showActivity(summary, running) {
-  activityShell.classList.remove("hidden");
-  activitySummary.textContent = summary;
-  activityIndicator.classList.toggle("running", Boolean(running));
-}
-
-function hideActivity() {
-  activityShell.classList.add("hidden");
-}
-
-function appendToolLine(text, tone) {
-  activityShell.classList.remove("hidden");
-  const line = document.createElement("div");
-  line.className = `tool-line ${tone || ""}`.trim();
-  line.textContent = text;
-  toolActivity.append(line);
-  toolActivity.scrollTop = toolActivity.scrollHeight;
 }
 
 function openSettings() {
@@ -626,13 +958,6 @@ function friendlyToolName(name) {
     cookies_delete: "Deleting current-page cookie…",
     cookies_delete_all: "Deleting all current-page cookies…"
   })[name] || `Running ${name}…`;
-}
-
-function compactArgs(args) {
-  if (!args || typeof args !== "object" || !Object.keys(args).length) return "";
-  let json;
-  try { json = JSON.stringify(args); } catch { return ""; }
-  return json.length > 180 ? `${json.slice(0, 177)}…` : json;
 }
 
 function renderMarkdown(target, markdown) {

@@ -33,6 +33,7 @@ export async function runAgent({ runId, history, settings, signal, emit }) {
   const availableTools = getToolDefinitions(settings);
 
   for (let step = 1; step <= settings.maxToolSteps; step += 1) {
+    emit("step_start", { step, maxSteps: settings.maxToolSteps });
     emit("status", `Meminta model… langkah ${step}/${settings.maxToolSteps}`);
     let stepReasoning = "";
     let stepContent = "";
@@ -84,14 +85,15 @@ export async function runAgent({ runId, history, settings, signal, emit }) {
     for (const call of toolCalls) {
       const name = call?.function?.name;
       const args = parseArguments(call?.function?.arguments);
-      emit("tool_start", { name, args });
+      const toolCallId = call?.id || `tool_${step}_${Date.now()}`;
+      emit("tool_start", { id: toolCallId, step, name, args });
       let result;
       try {
         result = await executeTool(name, args, context);
-        emit("tool_result", { name, ok: true, result: summarizeForUi(result) });
+        emit("tool_result", { id: toolCallId, step, name, ok: true, result: summarizeForUi(result) });
       } catch (error) {
         result = { ok: false, error: error?.message || String(error) };
-        emit("tool_result", { name, ok: false, result });
+        emit("tool_result", { id: toolCallId, step, name, ok: false, result });
       }
 
       messages.push({

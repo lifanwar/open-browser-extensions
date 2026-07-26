@@ -30,15 +30,6 @@
 
     <main id="chat" class="chat" aria-live="polite"></main>
 
-    <section id="activityShell" class="activity-shell hidden" aria-live="polite">
-      <button id="activityToggle" class="activity-toggle" type="button" aria-expanded="false">
-        <span id="activityIndicator" class="activity-indicator"></span>
-        <span id="activitySummary">Working on the page…</span>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
-      </button>
-      <div id="toolActivity" class="tool-activity hidden"></div>
-    </section>
-
     <section class="composer-zone">
       <form id="composer" class="composer">
         <textarea id="prompt" rows="1" placeholder="Ask anything or give a browser task" aria-label="Message"></textarea>
@@ -169,7 +160,7 @@
         <div class="settings-section">
           <label class="field-label" for="systemPrompt">Additional system prompt</label>
           <textarea id="systemPrompt" class="field-input system-prompt" rows="4" placeholder="Optional instructions for your agent"></textarea>
-          <p class="settings-hint">Reasoning is displayed only when your provider sends a reasoning/thinking field. It is hidden by default behind a Show reasoning button.</p>
+          <p class="settings-hint">Reasoning is displayed only when your provider sends a reasoning/thinking field. Agent steps and tool calls appear in an expandable activity timeline inside the assistant message.</p>
         </div>
       </div>
 

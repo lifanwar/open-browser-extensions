@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.3
+
+- Moved live agent activity out of the composer area and into each assistant message.
+- Added a Merlin-style activity timeline with running Thought process steps, ordered tool calls, and Running, Done, Failed, or Stopped states.
+- Added expandable tool rows for arguments and concise results.
+- Persisted activity timelines with conversation history.
+- Added stable tool-call IDs so repeated calls to the same tool are updated independently.
+- Removed the legacy activity box above the input.
+- Preserved manual scroll position by auto-scrolling only when the chat is within 100 pixels of the bottom.
+
 ## 1.2.0
 
 - Fixed debugger attach failures caused by required protocol version `0.1`.
