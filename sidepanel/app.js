@@ -70,21 +70,6 @@ async function init() {
   renderChat();
   renderConversationList();
   resizePrompt();
-
-  // Copy button delegation on code blocks
-  chat.addEventListener("click", async (event) => {
-    const btn = event.target.closest(".copy-button");
-    if (!btn) return;
-    const pre = btn.closest("pre");
-    if (!pre) return;
-    const code = pre.querySelector("code")?.textContent || pre.textContent;
-    try {
-      await navigator.clipboard.writeText(code);
-      btn.textContent = "Copied!";
-      btn.classList.add("copied");
-      setTimeout(() => { btn.textContent = "Copy"; btn.classList.remove("copied"); }, 2000);
-    } catch { btn.textContent = "Failed"; }
-  });
 }
 
 composer.addEventListener("submit", async (event) => {
@@ -656,7 +641,7 @@ function renderMarkdown(target, markdown) {
   let escaped = escapeHtml(raw).replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, language, code) => {
     const index = codeBlocks.length;
     const lang = escapeHtml(language.trim());
-    codeBlocks.push(`<pre><code data-language="${lang}">${code.replace(/^\n|\n$/g, "")}</code><button class="copy-button">Copy</button></pre>`);
+    codeBlocks.push(`<pre><code data-language="${lang}">${code.replace(/^\n|\n$/g, "")}</code></pre>`);
     return `@@CODEBLOCK_${index}@@`;
   });
 
