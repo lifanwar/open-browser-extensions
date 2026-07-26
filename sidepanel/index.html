@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open Browser Agent</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <button id="conversationsButton" class="header-button" type="button" title="Conversations" aria-label="Conversations">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      </button>
+
+      <button id="brandButton" class="brand" type="button" title="Percakapan baru">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 28 28"><path d="M14 2.7c.9 5.2 3.1 7.4 8.3 8.3-5.2.9-7.4 3.1-8.3 8.3-.9-5.2-3.1-7.4-8.3-8.3 5.2-.9 7.4-3.1 8.3-8.3Z"/><path d="M21.1 17.2c.4 2.2 1.3 3.1 3.5 3.5-2.2.4-3.1 1.3-3.5 3.5-.4-2.2-1.3-3.1-3.5-3.5 2.2-.4 3.1-1.3 3.5-3.5Z"/></svg>
+        </span>
+        <span class="brand-copy">
+          <strong id="conversationTitle">Open Agent</strong>
+          <small id="headerSubtitle">Browser assistant</small>
+        </span>
+      </button>
+
+      <button id="settingsButton" class="header-button" type="button" title="Settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.3a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
+      </button>
+    </header>
+
+    <main id="chat" class="chat" aria-live="polite"></main>
+
+    <section id="activityShell" class="activity-shell hidden" aria-live="polite">
+      <button id="activityToggle" class="activity-toggle" type="button" aria-expanded="false">
+        <span id="activityIndicator" class="activity-indicator"></span>
+        <span id="activitySummary">Working on the page…</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 10 4 4 4-4"/></svg>
+      </button>
+      <div id="toolActivity" class="tool-activity hidden"></div>
+    </section>
+
+    <section class="composer-zone">
+      <form id="composer" class="composer">
+        <textarea id="prompt" rows="1" placeholder="Ask anything or give a browser task" aria-label="Message"></textarea>
+        <div class="composer-toolbar">
+          <div class="composer-meta">
+            <button id="pageChip" class="meta-chip" type="button" title="Halaman target">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"/></svg>
+              <span id="pageChipText">Current page</span>
+            </button>
+            <button id="modelChip" class="meta-chip" type="button" title="Model API">
+              <span class="status-dot" id="apiStatusDot"></span>
+              <span id="modelChipText">Set model</span>
+            </button>
+          </div>
+
+          <div class="composer-controls">
+            <button type="button" id="stopButton" class="round-button stop-button hidden" title="Stop" aria-label="Stop">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+            </button>
+            <button type="submit" id="sendButton" class="round-button send-button" title="Send" aria-label="Send">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 7-7 7 7M12 5v14"/></svg>
+            </button>
+          </div>
+        </div>
+      </form>
+      <p class="composer-note">OpenAI-compatible API · Browser tools run locally</p>
+    </section>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop hidden"></div>
+  <aside id="conversationDrawer" class="conversation-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <div>
+        <span>OPEN AGENT</span>
+        <h2>Conversations</h2>
+      </div>
+      <button id="closeDrawer" class="header-button" type="button" aria-label="Close conversations">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+      </button>
+    </div>
+    <button id="newConversationButton" class="new-conversation-button" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+      <span>New conversation</span>
+    </button>
+    <div id="conversationList" class="conversation-list"></div>
+  </aside>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <form id="settingsForm" class="settings-card">
+      <div class="settings-head">
+        <div>
+          <span class="settings-kicker">OPEN AGENT</span>
+          <h2>Settings</h2>
+          <p>Connect your own OpenAI-compatible API.</p>
+        </div>
+        <button type="button" id="closeSettings" class="close-button" aria-label="Close settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+
+      <div id="settingsBody" class="settings-body">
+          <div class="settings-section">
+          <div class="section-title">
+            <span>API connection</span>
+            <small>Chat Completions</small>
+          </div>
+
+          <label class="field-label" for="baseUrl">Base URL</label>
+          <input id="baseUrl" class="field-input" type="url" placeholder="https://api.openai.com/v1" required>
+
+          <label class="field-label" for="apiKey">API key</label>
+          <div class="password-field">
+            <input id="apiKey" class="field-input" type="password" autocomplete="off" placeholder="sk-... or provider token">
+            <button id="toggleApiKey" type="button" class="password-toggle" aria-label="Show API key">
+              <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+            </button>
+          </div>
+
+          <label class="field-label" for="model">Model</label>
+          <input id="model" class="field-input" type="text" placeholder="gpt-4.1-mini" required>
+
+          <div class="field-grid">
+            <div>
+              <label class="field-label" for="temperature">Temperature</label>
+              <input id="temperature" class="field-input" type="number" min="0" max="2" step="0.1">
+            </div>
+            <div>
+              <label class="field-label" for="maxToolSteps">Max tool steps</label>
+              <input id="maxToolSteps" class="field-input" type="number" min="1" max="50">
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title"><span>Interface</span></div>
+          <label class="field-label" for="appearance">Appearance</label>
+          <select id="appearance" class="field-input">
+            <option value="system">Follow system</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+          <label class="switch-row">
+            <span><strong>Stream responses</strong><small>Show answer and provider reasoning trace while generated.</small></span>
+            <input id="streamResponses" type="checkbox"><i></i>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <div class="section-title"><span>Browser tools</span></div>
+          <label class="switch-row">
+            <span><strong>Auto-start Network</strong><small>Start capture when the page is first read.</small></span>
+            <input id="autoStartNetwork" type="checkbox"><i></i>
+          </label>
+          <label class="switch-row">
+            <span><strong>Capture response bodies</strong><small>Store textual Network response bodies.</small></span>
+            <input id="captureResponseBodies" type="checkbox"><i></i>
+          </label>
+          <label class="switch-row warning-row">
+            <span><strong>Raw values for current host</strong><small>Show Cookie, Authorization, token and matching body values.</small></span>
+            <input id="revealSensitiveOnCurrentHost" type="checkbox"><i></i>
+          </label>
+          <label class="switch-row warning-row">
+            <span><strong>Allow cookie paste/delete</strong><small>Enable current-page cookie create, import and delete tools. Auth/session cookie values remain protected.</small></span>
+            <input id="allowCookieWrites" type="checkbox"><i></i>
+          </label>
+        </div>
+
+        <div class="settings-section">
+          <label class="field-label" for="systemPrompt">Additional system prompt</label>
+          <textarea id="systemPrompt" class="field-input system-prompt" rows="4" placeholder="Optional instructions for your agent"></textarea>
+          <p class="settings-hint">Reasoning is displayed only when your provider sends a reasoning/thinking field. It is hidden by default behind a Show reasoning button.</p>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button type="button" id="cancelSettings" class="secondary-button">Cancel</button>
+        <button type="submit" class="primary-button">Save settings</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>

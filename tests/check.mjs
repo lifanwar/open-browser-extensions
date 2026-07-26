@@ -1,0 +1,195 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  buildChatCompletionsUrl,
+  createChatCompletion,
+  parseCompatibleJson
+} from "../background/openai-client.js";
+import { TOOL_DEFINITIONS, getToolDefinitions } from "../background/tool-definitions.js";
+
+assert.equal(buildChatCompletionsUrl("https://api.openai.com/v1"), "https://api.openai.com/v1/chat/completions");
+assert.equal(buildChatCompletionsUrl("http://127.0.0.1:1234/v1/"), "http://127.0.0.1:1234/v1/chat/completions");
+assert.equal(buildChatCompletionsUrl("https://example.test/chat/completions"), "https://example.test/chat/completions");
+assert.throws(() => buildChatCompletionsUrl(""));
+
+const expectedToolPayload = {
+  id: "completion-1",
+  object: "chat.completion",
+  choices: [{
+    index: 0,
+    finish_reason: "tool_calls",
+    message: {
+      role: "assistant",
+      content: "",
+      reasoning_content: "I will read the current page.",
+      tool_calls: [{
+        id: "call_1",
+        type: "function",
+        function: { name: "read_page", arguments: "{}" }
+      }]
+    }
+  }]
+};
+
+assert.deepEqual(parseCompatibleJson(JSON.stringify(expectedToolPayload)), expectedToolPayload);
+assert.deepEqual(parseCompatibleJson(`\uFEFF${JSON.stringify(expectedToolPayload)}\u0000proxy footer`), expectedToolPayload);
+
+const invalidControl = JSON.stringify(expectedToolPayload).replace(
+  "I will read the current page.",
+  "I will read\nthe current page."
+);
+assert.equal(
+  parseCompatibleJson(invalidControl).choices[0].message.reasoning_content,
+  "I will read\nthe current page."
+);
+
+const sse = [
+  'data: {"choices":[{"delta":{"role":"assistant","reasoning_content":"Checking… ","tool_calls":[{"index":0,"id":"call_sse","type":"function","function":{"name":"read_","arguments":""}}]}}]}',
+  'data: {"choices":[{"delta":{"reasoning_content":"done","tool_calls":[{"index":0,"function":{"name":"page","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}',
+  "data: [DONE]"
+].join("\n");
+const parsedSse = parseCompatibleJson(sse, "text/event-stream");
+assert.equal(parsedSse.choices[0].message.tool_calls[0].function.name, "read_page");
+assert.equal(parsedSse.choices[0].message.tool_calls[0].function.arguments, "{}");
+assert.equal(parsedSse.choices[0].message.reasoning_content, "Checking… done");
+
+const toolNames = TOOL_DEFINITIONS.map((tool) => tool.function.name);
+for (const required of ["read_page", "click", "fill", "network_start", "network_get", "network_stop"]) {
+  assert.ok(toolNames.includes(required), `Missing tool ${required}`);
+}
+assert.equal(new Set(toolNames).size, toolNames.length, "Tool names must be unique");
+const toolsWithoutCookieWrites = getToolDefinitions({ allowCookieWrites: false }).map((tool) => tool.function.name);
+assert.ok(toolsWithoutCookieWrites.includes("cookies_list"));
+for (const name of ["cookies_set", "cookies_import", "cookies_delete", "cookies_delete_all"]) {
+  assert.ok(!toolsWithoutCookieWrites.includes(name), `${name} must be omitted when cookie writes are disabled`);
+}
+const toolsWithCookieWrites = getToolDefinitions({ allowCookieWrites: true }).map((tool) => tool.function.name);
+assert.ok(toolsWithCookieWrites.includes("cookies_set"));
+
+let receivedRequest;
+const normalDeltas = [];
+const server = http.createServer((request, response) => {
+  const chunks = [];
+  request.on("data", (chunk) => chunks.push(chunk));
+  request.on("end", () => {
+    receivedRequest = {
+      url: request.url,
+      authorization: request.headers.authorization,
+      body: JSON.parse(Buffer.concat(chunks).toString("utf8"))
+    };
+    response.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+    response.end(`${JSON.stringify(expectedToolPayload)}\u0000provider-debug-footer`);
+  });
+});
+await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+const port = server.address().port;
+const mockMessage = await createChatCompletion({
+  settings: {
+    baseUrl: `http://127.0.0.1:${port}/v1`,
+    apiKey: "test-key",
+    model: "deepseek-v4-flash-free",
+    temperature: 0.2,
+    streamResponses: true
+  },
+  messages: [{ role: "user", content: "read this page" }],
+  tools: TOOL_DEFINITIONS,
+  signal: undefined,
+  onDelta: (event) => normalDeltas.push(event)
+});
+server.close();
+assert.equal(mockMessage.tool_calls[0].function.name, "read_page");
+assert.equal(mockMessage.reasoning_content, "I will read the current page.");
+assert.equal(receivedRequest.url, "/v1/chat/completions");
+assert.equal(receivedRequest.authorization, "Bearer test-key");
+assert.equal(receivedRequest.body.model, "deepseek-v4-flash-free");
+assert.equal(receivedRequest.body.tool_choice, "auto");
+assert.equal(receivedRequest.body.stream, true);
+assert.equal(receivedRequest.body.tools.length, TOOL_DEFINITIONS.length);
+assert.equal(normalDeltas.find((item) => item.type === "reasoning")?.delta, "I will read the current page.");
+
+let streamRequest;
+const streamDeltas = [];
+const streamServer = http.createServer((request, response) => {
+  const chunks = [];
+  request.on("data", (chunk) => chunks.push(chunk));
+  request.on("end", () => {
+    streamRequest = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    response.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache"
+    });
+    response.write('data: {"choices":[{"delta":{"role":"assistant","reasoning_content":"Need to "}}]}\n\n');
+    response.write('data: {"choices":[{"delta":{"reasoning_content":"inspect.","content":"Result "}}]}\n\n');
+    response.write('data: {"choices":[{"delta":{"content":"ready."},"finish_reason":"stop"}]}\n\n');
+    response.end('data: [DONE]\n\n');
+  });
+});
+await new Promise((resolve) => streamServer.listen(0, "127.0.0.1", resolve));
+const streamPort = streamServer.address().port;
+const streamedMessage = await createChatCompletion({
+  settings: {
+    baseUrl: `http://127.0.0.1:${streamPort}/v1`,
+    model: "stream-model",
+    streamResponses: true,
+    temperature: 0.2
+  },
+  messages: [{ role: "user", content: "test stream" }],
+  tools: TOOL_DEFINITIONS,
+  onDelta: (event) => streamDeltas.push(event)
+});
+streamServer.close();
+assert.equal(streamRequest.stream, true);
+assert.equal(streamedMessage.content, "Result ready.");
+assert.equal(streamedMessage.reasoning_content, "Need to inspect.");
+assert.equal(streamDeltas.filter((item) => item.type === "content").map((item) => item.delta).join(""), "Result ready.");
+assert.equal(streamDeltas.filter((item) => item.type === "reasoning").map((item) => item.delta).join(""), "Need to inspect.");
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(here, "..");
+const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
+assert.equal(manifest.manifest_version, 3);
+assert.equal(manifest.version, "1.3.1");
+assert.equal(manifest.background.type, "module");
+assert.ok(manifest.permissions.includes("debugger"));
+assert.ok(manifest.permissions.includes("sidePanel"));
+assert.equal(manifest.side_panel.default_path, "sidepanel/index.html");
+
+const networkSource = fs.readFileSync(path.join(root, "background/network-debugger.js"), "utf8");
+assert.match(networkSource, /"1\.3"/);
+assert.doesNotMatch(networkSource, /attach\(\{ tabId \}, "0\.1"\)/);
+
+const sidepanelHtml = fs.readFileSync(path.join(root, "sidepanel/index.html"), "utf8");
+for (const id of ["conversationDrawer", "newConversationButton", "conversationList", "appearance", "streamResponses", "settingsBody", "allowCookieWrites"]) {
+  assert.ok(sidepanelHtml.includes(`id="${id}"`), `Missing UI ${id}`);
+}
+const sidepanelJs = fs.readFileSync(path.join(root, "sidepanel/app.js"), "utf8");
+assert.ok(sidepanelJs.includes("Show reasoning"));
+assert.ok(sidepanelJs.includes("agentConversations"));
+assert.ok(sidepanelJs.includes("reasoning_delta"));
+
+const requiredFiles = [
+  "background/service-worker.js",
+  "background/agent.js",
+  "background/browser-tools.js",
+  "background/network-debugger.js",
+  "content/browser.js",
+  "sidepanel/index.html",
+  "sidepanel/app.js"
+];
+for (const file of requiredFiles) assert.ok(fs.existsSync(path.join(root, file)), `Missing ${file}`);
+
+const sourceFiles = [
+  ...fs.readdirSync(path.join(root, "background")).filter((name) => name.endsWith(".js")).map((name) => path.join(root, "background", name)),
+  path.join(root, "content/browser.js"),
+  path.join(root, "sidepanel/app.js")
+];
+for (const sourceFile of sourceFiles) {
+  const source = fs.readFileSync(sourceFile, "utf8");
+  assert.ok(source.includes("\n"), `${sourceFile} appears minified`);
+  assert.ok(!/eval\s*\(/.test(source), `${sourceFile} must not use eval`);
+}
+
+console.log("Static, CDP protocol, conversations, cookie tool gating, settings layout, parser and streaming checks passed.");
