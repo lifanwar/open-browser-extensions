@@ -218,7 +218,7 @@ chrome.runtime.onMessage.addListener((message) => {
     ensureLiveAssistantRow();
     completeThinkingActivity(payload?.step || 1);
     startToolActivity(payload || {});
-    headerSubtitle.textContent = friendlyToolName(payload?.name);
+    headerSubtitle.textContent = friendlyToolName(payload?.name, payload?.args);
   }
 
   if (event === "tool_result") {
@@ -793,9 +793,15 @@ function compactArgs(args, limit = 180, pretty = false) {
   return json.length > limit ? `${json.slice(0, Math.max(0, limit - 1))}…` : json;
 }
 
+function searchToolArgs(args = {}) {
+  return args?.task && typeof args.task === "object" ? args.task : args;
+}
+
 function toolPresentation(name, args = {}) {
   const currentHost = hostname(activeTab?.url) || "current page";
   const ref = args?.ref ? `Element ${args.ref}` : "page element";
+  const searchArgs = searchToolArgs(args);
+  const searchMode = String(searchArgs?.mode || "SEARCH").toUpperCase();
   const map = {
     read_page: ["Read", currentHost],
     click: ["Clicked", ref],
@@ -817,10 +823,10 @@ function toolPresentation(name, args = {}) {
     cookies_delete: ["Deleted", args?.name || "cookie"],
     cookies_delete_all: ["Deleted", "all current-page cookies"],
     web_search_tool: [
-      args?.task?.mode === "EXTRACT" ? "Extracted" : "Searched",
-      args?.task?.mode === "EXTRACT"
-        ? hostname(args?.task?.url) || args?.task?.url || "web page"
-        : args?.task?.query || "the web"
+      searchMode === "EXTRACT" ? "Extracted" : "Searched",
+      searchMode === "EXTRACT"
+        ? hostname(searchArgs?.url) || searchArgs?.url || "web page"
+        : searchArgs?.query || "the web"
     ]
   };
   const [verb, subject] = map[name] || ["Ran", String(name || "tool").replaceAll("_", " ")];
@@ -1010,7 +1016,13 @@ function activeTabSubtitle() {
   return host ? `Ready on ${host}` : "Browser assistant";
 }
 
-function friendlyToolName(name) {
+function friendlyToolName(name, args = {}) {
+  if (name === "web_search_tool") {
+    const searchArgs = searchToolArgs(args);
+    const mode = String(searchArgs?.mode || "SEARCH").toUpperCase();
+    return mode === "EXTRACT" ? "Extracting page content…" : "Searching the web…";
+  }
+
   return ({
     read_page: "Reading the page…",
     click: "Clicking an element…",
@@ -1030,8 +1042,7 @@ function friendlyToolName(name) {
     cookies_set: "Saving current-page cookie…",
     cookies_import: "Importing current-page cookies…",
     cookies_delete: "Deleting current-page cookie…",
-    cookies_delete_all: "Deleting all current-page cookies…",
-    web_search_tool: "Searching the web…"
+    cookies_delete_all: "Deleting all current-page cookies…"
   })[name] || `Running ${name}…`;
 }
 
