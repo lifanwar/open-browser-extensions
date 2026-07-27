@@ -19,6 +19,13 @@ const settingsBody = document.querySelector("#settingsBody");
 const closeSettings = document.querySelector("#closeSettings");
 const cancelSettings = document.querySelector("#cancelSettings");
 const toggleApiKey = document.querySelector("#toggleApiKey");
+const toggleSearchApiKey = document.querySelector("#toggleSearchApiKey");
+const toggleFetchApiKey = document.querySelector("#toggleFetchApiKey");
+const searchConnectionMode = document.querySelector("#searchConnectionMode");
+const directSearchFields = document.querySelector("#directSearchFields");
+const nineRouterSearchFields = document.querySelector("#nineRouterSearchFields");
+const searchConnectionStatus = document.querySelector("#searchConnectionStatus");
+const settingsValidation = document.querySelector("#settingsValidation");
 const conversationDrawer = document.querySelector("#conversationDrawer");
 const drawerBackdrop = document.querySelector("#drawerBackdrop");
 const closeDrawerButton = document.querySelector("#closeDrawer");
@@ -99,11 +106,30 @@ modelChip.addEventListener("click", openSettings);
 closeSettings.addEventListener("click", () => settingsDialog.close());
 cancelSettings.addEventListener("click", () => settingsDialog.close());
 
-toggleApiKey.addEventListener("click", () => {
-  const input = document.querySelector("#apiKey");
-  input.type = input.type === "password" ? "text" : "password";
-  toggleApiKey.setAttribute("aria-label", input.type === "password" ? "Show API key" : "Hide API key");
+toggleApiKey.addEventListener("click", () => togglePasswordVisibility("apiKey", toggleApiKey, "API key"));
+toggleSearchApiKey.addEventListener("click", () => togglePasswordVisibility("searchApiKey", toggleSearchApiKey, "Search API key"));
+toggleFetchApiKey.addEventListener("click", () => togglePasswordVisibility("fetchApiKey", toggleFetchApiKey, "Fetch API key"));
+searchConnectionMode?.addEventListener("change", () => {
+  updateSearchModeFields();
+  updateSearchConnectionStatus();
 });
+
+for (const id of [
+  "searchBaseUrl",
+  "searchEndpoint",
+  "fetchEndpoint",
+  "searchApiKey",
+  "fetchApiKey",
+  "searchModel",
+  "fetchModel",
+  "searchDefaultType",
+  "searchMaxResults",
+  "fetchFormat",
+  "enableSearchTool"
+]) {
+  document.querySelector(`#${id}`)?.addEventListener("input", updateSearchConnectionStatus);
+  document.querySelector(`#${id}`)?.addEventListener("change", updateSearchConnectionStatus);
+}
 
 pageChip.addEventListener("click", refreshActiveTab);
 
@@ -121,8 +147,26 @@ settingsForm.addEventListener("submit", async (event) => {
     captureResponseBodies: checked("captureResponseBodies"),
     allowCookieWrites: checked("allowCookieWrites"),
     revealSensitiveOnCurrentHost: checked("revealSensitiveOnCurrentHost"),
+    enableSearchTool: checked("enableSearchTool"),
+    searchConnectionMode: value("searchConnectionMode"),
+    searchBaseUrl: value("searchBaseUrl"),
+    searchEndpoint: value("searchEndpoint"),
+    fetchEndpoint: value("fetchEndpoint"),
+    searchApiKey: value("searchApiKey"),
+    fetchApiKey: value("fetchApiKey"),
+    searchModel: value("searchModel"),
+    fetchModel: value("fetchModel"),
+    searchDefaultType: value("searchDefaultType"),
+    searchMaxResults: Number(value("searchMaxResults")),
+    fetchFormat: value("fetchFormat"),
     systemPrompt: value("systemPrompt")
   };
+  const validationError = validateSettingsInput(next);
+  if (validationError) {
+    showSettingsValidation(validationError);
+    return;
+  }
+  showSettingsValidation("");
   settings = await sendMessage({ type: "SAVE_SETTINGS", settings: next });
   applyAppearance(settings.appearance);
   settingsDialog.close();
@@ -527,7 +571,10 @@ function createToolActivityNode(activity) {
   const args = compactArgs(activity.args, 1200, true);
   if (args) appendActivityDetail(body, "Arguments", args, true);
 
-  if (activity.result) {
+  if (activity.name === "web_search_tool" && activity.search && activity.status !== "error") {
+    appendActivityDetail(body, "Status", activity.search.message || searchStatusText(activity.search));
+    appendSearchSources(body, activity.search);
+  } else if (activity.result) {
     appendActivityDetail(body, activity.status === "error" ? "Error" : "Result", formatResultPreview(activity.result), true);
   }
 
@@ -666,6 +713,7 @@ function finishToolActivity(payload) {
   }
   activity.status = payload.ok === false ? "error" : "done";
   activity.result = truncateText(payload.result, 1600);
+  activity.search = normalizeSearchActivity(payload.search);
   activity.finishedAt = Date.now();
   updateLiveActivities();
 }
@@ -692,6 +740,7 @@ function cloneActivities(activities) {
     status: ["running", "done", "error", "cancelled"].includes(activity.status) ? activity.status : "done",
     content: truncateText(activity.content, 12000),
     result: truncateText(activity.result, 1600),
+    search: normalizeSearchActivity(activity.search),
     startedAt: Number(activity.startedAt || 0) || undefined,
     finishedAt: Number(activity.finishedAt || 0) || undefined
   }));
@@ -766,7 +815,13 @@ function toolPresentation(name, args = {}) {
     cookies_set: ["Saved", args?.cookie?.name || "cookie"],
     cookies_import: ["Imported", "current-page cookies"],
     cookies_delete: ["Deleted", args?.name || "cookie"],
-    cookies_delete_all: ["Deleted", "all current-page cookies"]
+    cookies_delete_all: ["Deleted", "all current-page cookies"],
+    web_search_tool: [
+      args?.task?.mode === "EXTRACT" ? "Extracted" : "Searched",
+      args?.task?.mode === "EXTRACT"
+        ? hostname(args?.task?.url) || args?.task?.url || "web page"
+        : args?.task?.query || "the web"
+    ]
   };
   const [verb, subject] = map[name] || ["Ran", String(name || "tool").replaceAll("_", " ")];
   return { verb, subject: String(subject || "tool") };
@@ -794,6 +849,7 @@ function toolIconSvg(name) {
   if (name === "fill" || name === "select_option") return '<svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM7 9h10M7 13h6"/></svg>';
   if (name?.startsWith("network_")) return '<svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h9M5 17h6"/><circle cx="18" cy="16" r="3"/></svg>';
   if (name?.startsWith("cookies_")) return '<svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-7-7 3 3 0 0 0 4 4 3 3 0 0 0 3 3Z"/><path d="M8 13h.01M12 16h.01M10 9h.01"/></svg>';
+  if (name === "web_search_tool") return '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5M4 11h14M11 4a12 12 0 0 1 0 14M11 4a12 12 0 0 0 0 14"/></svg>';
   if (name === "navigate" || name === "switch_tab") return '<svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
   return '<svg viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>';
 }
@@ -894,6 +950,7 @@ function resizePrompt() {
 
 function openSettings() {
   fillSettingsForm();
+  showSettingsValidation("");
   settingsDialog.showModal();
   requestAnimationFrame(() => {
     if (settingsBody) settingsBody.scrollTop = 0;
@@ -913,7 +970,24 @@ function fillSettingsForm() {
   setChecked("captureResponseBodies", settings.captureResponseBodies);
   setChecked("revealSensitiveOnCurrentHost", settings.revealSensitiveOnCurrentHost);
   setChecked("allowCookieWrites", settings.allowCookieWrites);
+  setChecked("enableSearchTool", settings.enableSearchTool);
+  setValue("searchConnectionMode", settings.searchConnectionMode || "direct");
+  setValue("searchBaseUrl", settings.searchBaseUrl);
+  setValue("searchEndpoint", settings.searchEndpoint);
+  setValue("fetchEndpoint", settings.fetchEndpoint);
+  setValue("searchApiKey", settings.searchApiKey);
+  setValue("fetchApiKey", settings.fetchApiKey);
+  setValue("searchModel", settings.searchModel || "search-combo");
+  setValue("fetchModel", settings.fetchModel || "fetch-combo");
+  setValue("searchDefaultType", settings.searchDefaultType || "web");
+  setValue("searchMaxResults", settings.searchMaxResults ?? 5);
+  setValue("fetchFormat", settings.fetchFormat || "markdown");
   setValue("systemPrompt", settings.systemPrompt);
+  resetPasswordField("apiKey", toggleApiKey, "API key");
+  resetPasswordField("searchApiKey", toggleSearchApiKey, "Search API key");
+  resetPasswordField("fetchApiKey", toggleFetchApiKey, "Fetch API key");
+  updateSearchModeFields();
+  updateSearchConnectionStatus();
 }
 
 function updateChrome() {
@@ -956,8 +1030,183 @@ function friendlyToolName(name) {
     cookies_set: "Saving current-page cookie…",
     cookies_import: "Importing current-page cookies…",
     cookies_delete: "Deleting current-page cookie…",
-    cookies_delete_all: "Deleting all current-page cookies…"
+    cookies_delete_all: "Deleting all current-page cookies…",
+    web_search_tool: "Searching the web…"
   })[name] || `Running ${name}…`;
+}
+
+function togglePasswordVisibility(inputId, button, label) {
+  const input = document.querySelector(`#${inputId}`);
+  if (!input || !button) return;
+  input.type = input.type === "password" ? "text" : "password";
+  button.setAttribute("aria-label", input.type === "password" ? `Show ${label}` : `Hide ${label}`);
+}
+
+function resetPasswordField(inputId, button, label) {
+  const input = document.querySelector(`#${inputId}`);
+  if (!input || !button) return;
+  input.type = "password";
+  button.setAttribute("aria-label", `Show ${label}`);
+}
+
+function validateSettingsInput(next) {
+  if (!next.enableSearchTool) return "";
+
+  const mode = next.searchConnectionMode === "9router" ? "9router" : "direct";
+  if (mode === "9router") {
+    if (!String(next.searchBaseUrl || "").trim()) return "9Router base URL is required while Web search tool is enabled.";
+    if (!isHttpUrl(next.searchBaseUrl)) return "9Router base URL must be a valid http or https URL.";
+  } else {
+    if (!String(next.searchEndpoint || "").trim()) return "Search endpoint is required while Web search tool is enabled.";
+    if (!String(next.fetchEndpoint || "").trim()) return "Fetch endpoint is required while Web search tool is enabled.";
+    if (!isHttpUrl(next.searchEndpoint)) return "Search endpoint must be a valid http or https URL.";
+    if (!isHttpUrl(next.fetchEndpoint)) return "Fetch endpoint must be a valid http or https URL.";
+  }
+
+  if (!String(next.searchApiKey || "").trim()) return "Search API key is required while Web search tool is enabled.";
+  if (!String(next.fetchApiKey || "").trim()) return "Fetch API key is required while Web search tool is enabled.";
+  if (!String(next.searchModel || "").trim()) return "Search model is required while Web search tool is enabled.";
+  if (!String(next.fetchModel || "").trim()) return "Fetch model is required while Web search tool is enabled.";
+
+  const maxResults = Number(next.searchMaxResults);
+  if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 10) {
+    return "Default max results must be an integer from 1 to 10.";
+  }
+  return "";
+}
+
+function showSettingsValidation(message) {
+  if (!settingsValidation) return;
+  const text = String(message || "").trim();
+  settingsValidation.textContent = text;
+  settingsValidation.classList.toggle("hidden", !text);
+}
+
+function updateSearchModeFields() {
+  const mode = value("searchConnectionMode") === "9router" ? "9router" : "direct";
+  directSearchFields?.classList.toggle("hidden", mode !== "direct");
+  nineRouterSearchFields?.classList.toggle("hidden", mode !== "9router");
+}
+
+function updateSearchConnectionStatus() {
+  if (!searchConnectionStatus) return;
+  const enabled = checked("enableSearchTool");
+  const snapshot = {
+    enableSearchTool: enabled,
+    searchConnectionMode: value("searchConnectionMode"),
+    searchBaseUrl: value("searchBaseUrl"),
+    searchEndpoint: value("searchEndpoint"),
+    fetchEndpoint: value("fetchEndpoint"),
+    searchApiKey: value("searchApiKey"),
+    fetchApiKey: value("fetchApiKey"),
+    searchModel: value("searchModel"),
+    fetchModel: value("fetchModel"),
+    searchMaxResults: Number(value("searchMaxResults"))
+  };
+  const validationError = validateSettingsInput(snapshot);
+  const hasConfiguration = snapshot.searchConnectionMode === "9router"
+    ? [snapshot.searchBaseUrl, snapshot.searchApiKey, snapshot.fetchApiKey]
+      .some((item) => String(item || "").trim())
+    : [snapshot.searchEndpoint, snapshot.fetchEndpoint, snapshot.searchApiKey, snapshot.fetchApiKey]
+      .some((item) => String(item || "").trim());
+
+  searchConnectionStatus.textContent = enabled
+    ? validationError ? "Needs setup" : "Enabled"
+    : hasConfiguration ? "Disabled" : "Optional";
+  searchConnectionStatus.dataset.state = enabled
+    ? validationError ? "warning" : "ready"
+    : "idle";
+}
+
+function isHttpUrl(valueToCheck) {
+  try {
+    const url = new URL(String(valueToCheck || "").trim());
+    return ["http:", "https:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function normalizeSearchActivity(value) {
+  if (!value || typeof value !== "object") return null;
+  const sources = (Array.isArray(value.sources) ? value.sources : [])
+    .map((source) => {
+      if (!source || typeof source !== "object") return null;
+      const url = String(source.url || "").trim();
+      if (!/^https?:\/\//i.test(url)) return null;
+      return {
+        title: truncateText(source.title || url, 500),
+        url,
+        snippet: truncateText(source.snippet, 700)
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 10);
+  return {
+    status: String(value.status || (sources.length ? "success" : "no_results")),
+    message: truncateText(value.message, 700),
+    count: Number(value.count ?? sources.length),
+    sources
+  };
+}
+
+function searchStatusText(search) {
+  if (search?.status === "no_results") return "No search results found.";
+  const count = Number(search?.count ?? search?.sources?.length ?? 0);
+  return `${count} search source${count === 1 ? "" : "s"} found.`;
+}
+
+function appendSearchSources(container, search) {
+  const sources = Array.isArray(search?.sources) ? search.sources : [];
+  if (!sources.length) {
+    const empty = document.createElement("p");
+    empty.className = "search-source-empty";
+    empty.textContent = search?.message || "No search results found.";
+    container.append(empty);
+    return;
+  }
+
+  const details = document.createElement("details");
+  details.className = "search-sources";
+  const summary = document.createElement("summary");
+  summary.innerHTML = `<span class="search-source-globe" aria-hidden="true">${toolIconSvg("web_search_tool")}</span><strong>${sources.length} source${sources.length === 1 ? "" : "s"}</strong><span class="search-source-chevron" aria-hidden="true">${chevronSvgNode().innerHTML}</span>`;
+
+  const list = document.createElement("div");
+  list.className = "search-source-list";
+  for (const source of sources) {
+    const link = document.createElement("a");
+    link.className = "search-source-item";
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+
+    const icon = document.createElement("span");
+    icon.className = "search-source-index";
+    icon.textContent = String(list.childElementCount + 1);
+
+    const copy = document.createElement("span");
+    copy.className = "search-source-copy";
+    const title = document.createElement("strong");
+    title.textContent = source.title || source.url;
+    const domain = document.createElement("small");
+    domain.textContent = hostname(source.url) || source.url;
+    copy.append(title, domain);
+    if (source.snippet) {
+      const snippet = document.createElement("span");
+      snippet.className = "search-source-snippet";
+      snippet.textContent = source.snippet;
+      copy.append(snippet);
+    }
+
+    const external = document.createElement("span");
+    external.className = "search-source-external";
+    external.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M18 13v6H5V6h6"/></svg>';
+    link.append(icon, copy, external);
+    list.append(link);
+  }
+
+  details.append(summary, list);
+  container.append(details);
 }
 
 function renderMarkdown(target, markdown) {

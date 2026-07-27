@@ -1,3 +1,5 @@
+import { WEB_SEARCH_TOOL_DEFINITION } from "./tools/search/search-tool.js";
+
 const fn = (name, description, properties = {}, required = []) => ({
   type: "function",
   function: {
@@ -83,8 +85,21 @@ export const TOOL_DEFINITIONS = [
     path: { type: "string" },
     domain: { type: "string" }
   }, ["name"]),
-  fn("cookies_delete_all", "Delete all cookies applicable to the current page. Requires cookie writes enabled in Settings."),
+  fn("cookies_delete_all", "Delete all cookies applicable to the current page. Requires cookie writes enabled in Settings.")
 ];
+
+const SEARCH_ENABLED_NAVIGATE_TOOL = fn(
+  "navigate",
+  "Open a URL in the controlled browser only when real browser interaction or visual inspection is required. Set interaction_required to true. Do not use this tool for web research, searching, or reading/extracting a URL; use web_search_tool SEARCH or EXTRACT instead.",
+  {
+    url: { type: "string" },
+    interaction_required: {
+      type: "boolean",
+      description: "Must be true only when the page must actually be opened in the browser for clicking, filling, login, visual inspection, or another browser-only interaction."
+    }
+  },
+  ["url", "interaction_required"]
+);
 
 const COOKIE_WRITE_TOOL_NAMES = new Set([
   "cookies_set",
@@ -94,11 +109,19 @@ const COOKIE_WRITE_TOOL_NAMES = new Set([
 ]);
 
 /**
- * Only advertise cookie write tools when the user enabled them.
- * This prevents the model/provider from seeing tools that cannot run and
- * keeps the API request schema stable when cookie writes are disabled.
+ * Only advertise optional tools when the user enabled them.
  */
 export function getToolDefinitions(settings = {}) {
-  if (settings.allowCookieWrites) return TOOL_DEFINITIONS;
-  return TOOL_DEFINITIONS.filter((tool) => !COOKIE_WRITE_TOOL_NAMES.has(tool.function.name));
+  let tools = settings.allowCookieWrites
+    ? [...TOOL_DEFINITIONS]
+    : TOOL_DEFINITIONS.filter((tool) => !COOKIE_WRITE_TOOL_NAMES.has(tool.function.name));
+
+  if (settings.enableSearchTool) {
+    tools = tools.map((tool) =>
+      tool.function.name === "navigate" ? SEARCH_ENABLED_NAVIGATE_TOOL : tool
+    );
+    tools.push(WEB_SEARCH_TOOL_DEFINITION);
+  }
+
+  return tools;
 }
