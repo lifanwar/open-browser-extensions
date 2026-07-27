@@ -12,7 +12,6 @@
       <button id="conversationsButton" class="header-button" type="button" title="Conversations" aria-label="Conversations">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
       </button>
-
       <button id="brandButton" class="brand" type="button" title="Percakapan baru">
         <span class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 28 28"><path d="M14 2.7c.9 5.2 3.1 7.4 8.3 8.3-5.2.9-7.4 3.1-8.3 8.3-.9-5.2-3.1-7.4-8.3-8.3 5.2-.9 7.4-3.1 8.3-8.3Z"/><path d="M21.1 17.2c.4 2.2 1.3 3.1 3.5 3.5-2.2.4-3.1 1.3-3.5 3.5-.4-2.2-1.3-3.1-3.5-3.5 2.2-.4 3.1-1.3 3.5-3.5Z"/></svg>
@@ -22,7 +21,6 @@
           <small id="headerSubtitle">Browser assistant</small>
         </span>
       </button>
-
       <button id="settingsButton" class="header-button" type="button" title="Settings" aria-label="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.3a3.3 3.3 0 1 0 0-6.6 3.3 3.3 0 0 0 0 6.6Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg>
       </button>
@@ -44,7 +42,6 @@
               <span id="modelChipText">Set model</span>
             </button>
           </div>
-
           <div class="composer-controls">
             <button type="button" id="stopButton" class="round-button stop-button hidden" title="Stop" aria-label="Stop">
               <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
@@ -83,7 +80,7 @@
         <div>
           <span class="settings-kicker">OPEN AGENT</span>
           <h2>Settings</h2>
-          <p>Connect your own OpenAI-compatible API.</p>
+          <p>Connect your chat API and optional Search API.</p>
         </div>
         <button type="button" id="closeSettings" class="close-button" aria-label="Close settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
@@ -91,37 +88,112 @@
       </div>
 
       <div id="settingsBody" class="settings-body">
-          <div class="settings-section">
-          <div class="section-title">
+        <details class="settings-section settings-collapsible" open>
+          <summary class="section-title">
             <span>API connection</span>
-            <small>Chat Completions</small>
-          </div>
-
-          <label class="field-label" for="baseUrl">Base URL</label>
-          <input id="baseUrl" class="field-input" type="url" placeholder="https://api.openai.com/v1" required>
-
-          <label class="field-label" for="apiKey">API key</label>
-          <div class="password-field">
-            <input id="apiKey" class="field-input" type="password" autocomplete="off" placeholder="sk-... or provider token">
-            <button id="toggleApiKey" type="button" class="password-toggle" aria-label="Show API key">
-              <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
-            </button>
-          </div>
-
-          <label class="field-label" for="model">Model</label>
-          <input id="model" class="field-input" type="text" placeholder="gpt-4.1-mini" required>
-
-          <div class="field-grid">
-            <div>
-              <label class="field-label" for="temperature">Temperature</label>
-              <input id="temperature" class="field-input" type="number" min="0" max="2" step="0.1">
+            <span class="section-title-meta"><small>Chat Completions</small><i aria-hidden="true"></i></span>
+          </summary>
+          <div class="settings-section-body">
+            <label class="field-label" for="baseUrl">Base URL</label>
+            <input id="baseUrl" class="field-input" type="url" placeholder="https://api.openai.com/v1" required>
+            <label class="field-label" for="apiKey">API key</label>
+            <div class="password-field">
+              <input id="apiKey" class="field-input" type="password" autocomplete="off" placeholder="sk-... or provider token">
+              <button id="toggleApiKey" type="button" class="password-toggle" aria-label="Show API key">
+                <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              </button>
             </div>
-            <div>
-              <label class="field-label" for="maxToolSteps">Max tool steps</label>
-              <input id="maxToolSteps" class="field-input" type="number" min="1" max="50" placeholder="∞ (unlimited)">
+            <label class="field-label" for="model">Model</label>
+            <input id="model" class="field-input" type="text" placeholder="gpt-4.1-mini" required>
+            <div class="field-grid">
+              <div>
+                <label class="field-label" for="temperature">Temperature</label>
+                <input id="temperature" class="field-input" type="number" min="0" max="2" step="0.1">
+              </div>
+              <div>
+                <label class="field-label" for="maxToolSteps">Max tool steps</label>
+                <input id="maxToolSteps" class="field-input" type="number" min="1" max="50" placeholder="∞ (unlimited)">
+              </div>
             </div>
           </div>
-        </div>
+        </details>
+
+        <details class="settings-section settings-collapsible">
+          <summary class="section-title">
+            <span>Search connection</span>
+            <span class="section-title-meta"><small id="searchConnectionStatus">Optional</small><i aria-hidden="true"></i></span>
+          </summary>
+          <div class="settings-section-body">
+            <label class="field-label" for="searchConnectionMode">Connection type</label>
+            <select id="searchConnectionMode" class="field-input">
+              <option value="direct">Direct endpoints</option>
+              <option value="9router">9Router-compatible</option>
+            </select>
+
+            <div id="directSearchFields" class="search-mode-fields">
+              <label class="field-label" for="searchEndpoint">Search endpoint</label>
+              <input id="searchEndpoint" class="field-input" type="url" placeholder="https://provider.example.com/v1/search">
+              <label class="field-label" for="fetchEndpoint">Fetch endpoint</label>
+              <input id="fetchEndpoint" class="field-input" type="url" placeholder="https://provider.example.com/v1/web/fetch">
+            </div>
+
+            <div id="nineRouterSearchFields" class="search-mode-fields hidden">
+              <label class="field-label" for="searchBaseUrl">9Router base URL</label>
+              <input id="searchBaseUrl" class="field-input" type="url" placeholder="http://localhost:20128/v1">
+              <p class="settings-hint">The extension derives <code>/search</code> and <code>/web/fetch</code> from this base URL.</p>
+            </div>
+
+            <div class="field-grid">
+              <div>
+                <label class="field-label" for="searchModel">Search model</label>
+                <input id="searchModel" class="field-input" type="text" placeholder="search-combo">
+              </div>
+              <div>
+                <label class="field-label" for="fetchModel">Fetch model</label>
+                <input id="fetchModel" class="field-input" type="text" placeholder="fetch-combo">
+              </div>
+            </div>
+
+            <label class="field-label" for="searchApiKey">Search API key</label>
+            <div class="password-field">
+              <input id="searchApiKey" class="field-input" type="password" autocomplete="off" placeholder="Search endpoint token">
+              <button id="toggleSearchApiKey" type="button" class="password-toggle" aria-label="Show Search API key">
+                <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              </button>
+            </div>
+
+            <label class="field-label" for="fetchApiKey">Fetch API key</label>
+            <div class="password-field">
+              <input id="fetchApiKey" class="field-input" type="password" autocomplete="off" placeholder="Fetch endpoint token">
+              <button id="toggleFetchApiKey" type="button" class="password-toggle" aria-label="Show Fetch API key">
+                <svg class="eye-open" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>
+              </button>
+            </div>
+
+            <div class="field-grid">
+              <div>
+                <label class="field-label" for="searchDefaultType">Default search type</label>
+                <select id="searchDefaultType" class="field-input">
+                  <option value="web">Web</option>
+                  <option value="news">News</option>
+                </select>
+              </div>
+              <div>
+                <label class="field-label" for="searchMaxResults">Default max results</label>
+                <input id="searchMaxResults" class="field-input" type="number" min="1" max="10" step="1">
+              </div>
+            </div>
+
+            <label class="field-label" for="fetchFormat">Fetch format</label>
+            <select id="fetchFormat" class="field-input">
+              <option value="markdown">Markdown</option>
+              <option value="text">Text</option>
+              <option value="html">HTML</option>
+            </select>
+
+            <p class="settings-hint">Both connection modes send the 9Router-style request body: search uses <code>model</code>, <code>query</code>, <code>search_type</code>, and <code>max_results</code>; fetch uses <code>model</code>, <code>url</code>, and <code>format</code>.</p>
+          </div>
+        </details>
 
         <div class="settings-section">
           <div class="section-title"><span>Interface</span></div>
@@ -139,6 +211,10 @@
 
         <div class="settings-section">
           <div class="section-title"><span>Browser tools</span></div>
+          <label class="switch-row">
+            <span><strong>Web search tool</strong><small>Advertise SEARCH and EXTRACT to the model using the Search connection above.</small></span>
+            <input id="enableSearchTool" type="checkbox"><i></i>
+          </label>
           <label class="switch-row">
             <span><strong>Auto-start Network</strong><small>Start capture when the page is first read.</small></span>
             <input id="autoStartNetwork" type="checkbox"><i></i>
@@ -162,6 +238,8 @@
           <textarea id="systemPrompt" class="field-input system-prompt" rows="4" placeholder="Optional instructions for your agent"></textarea>
           <p class="settings-hint">Reasoning is displayed only when your provider sends a reasoning/thinking field. Agent steps and tool calls appear in an expandable activity timeline inside the assistant message.</p>
         </div>
+
+        <p id="settingsValidation" class="settings-validation hidden" role="alert"></p>
       </div>
 
       <div class="settings-actions">

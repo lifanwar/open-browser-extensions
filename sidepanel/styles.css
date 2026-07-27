@@ -719,3 +719,168 @@ html[data-theme="dark"] .table-wrapper th {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Search tool settings and source presentation */
+.settings-collapsible { display: block; }
+.settings-collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.settings-collapsible > summary::-webkit-details-marker { display: none; }
+.settings-collapsible .section-title-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.settings-collapsible .section-title-meta > i {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  color: var(--muted-soft);
+  transform: rotate(45deg);
+  transition: transform .16s ease;
+}
+.settings-collapsible[open] .section-title-meta > i { transform: rotate(225deg); }
+.settings-section-body {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+.search-mode-fields {
+  display: grid;
+  gap: 8px;
+}
+#searchConnectionStatus[data-state="ready"] { color: var(--accent-strong); }
+#searchConnectionStatus[data-state="warning"] { color: var(--danger); }
+.settings-validation {
+  margin: 10px 0 16px;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.search-source-empty {
+  margin-top: 9px !important;
+  padding: 8px 9px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 8px;
+  color: var(--muted-soft);
+}
+.search-sources {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.search-sources > summary {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  list-style: none;
+  cursor: pointer;
+  color: var(--foreground);
+}
+.search-sources > summary::-webkit-details-marker { display: none; }
+.search-sources > summary:hover { background: var(--surface-strong); }
+.search-sources > summary strong { font-size: 11px; font-weight: 650; }
+.search-source-globe {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--accent-strong);
+  background: var(--background);
+}
+.search-source-globe svg,
+.search-source-chevron svg,
+.search-source-external svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.search-source-globe svg { width: 14px; height: 14px; }
+.search-source-chevron {
+  display: grid;
+  place-items: center;
+  transition: transform .16s ease;
+}
+.search-source-chevron svg { width: 15px; height: 15px; }
+.search-sources[open] .search-source-chevron { transform: rotate(180deg); }
+.search-source-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+.search-source-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 18px;
+  align-items: start;
+  gap: 8px;
+  padding: 9px 10px;
+  color: inherit;
+  text-decoration: none;
+}
+.search-source-item + .search-source-item { border-top: 1px solid var(--border); }
+.search-source-item:hover { background: var(--surface-strong); }
+.search-source-index {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 9px;
+  font-weight: 750;
+}
+.search-source-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.search-source-copy strong,
+.search-source-copy small,
+.search-source-snippet {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.search-source-copy strong {
+  color: var(--foreground);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.search-source-copy small {
+  color: var(--muted-soft);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.search-source-snippet {
+  display: -webkit-box;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.search-source-external {
+  display: grid;
+  place-items: center;
+  padding-top: 3px;
+  color: var(--muted-soft);
+}
+.search-source-external svg { width: 14px; height: 14px; }
