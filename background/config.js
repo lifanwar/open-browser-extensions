@@ -27,7 +27,7 @@ export async function saveSettings(settings) {
     ...settings,
     appearance,
     temperature: clampNumber(settings.temperature, 0, 2, DEFAULT_SETTINGS.temperature),
-    maxToolSteps: Math.round(clampNumber(settings.maxToolSteps, 1, 50, DEFAULT_SETTINGS.maxToolSteps)),
+    maxToolSteps: sanitizeMaxToolSteps(settings.maxToolSteps),
     streamResponses: settings.streamResponses !== false,
     autoStartNetwork: Boolean(settings.autoStartNetwork),
     revealSensitiveOnCurrentHost: Boolean(settings.revealSensitiveOnCurrentHost),
@@ -36,6 +36,12 @@ export async function saveSettings(settings) {
   };
   await chrome.storage.local.set({ settings: clean });
   return clean;
+}
+
+function sanitizeMaxToolSteps(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return null; // null = unlimited
+  return Math.round(clampNumber(n, 1, 50, DEFAULT_SETTINGS.maxToolSteps));
 }
 
 function clampNumber(value, min, max, fallback) {

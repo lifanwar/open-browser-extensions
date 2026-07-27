@@ -32,9 +32,9 @@ export async function runAgent({ runId, history, settings, signal, emit }) {
   const reasoningSteps = [];
   const availableTools = getToolDefinitions(settings);
 
-  for (let step = 1; step <= settings.maxToolSteps; step += 1) {
+  for (let step = 1; ; step += 1) {
     emit("step_start", { step, maxSteps: settings.maxToolSteps });
-    emit("status", `Meminta model… langkah ${step}/${settings.maxToolSteps}`);
+    emit("status", settings.maxToolSteps ? `Meminta model… langkah ${step}/${settings.maxToolSteps}` : `Meminta model… langkah ${step}`);
     let stepReasoning = "";
     let stepContent = "";
 
@@ -104,7 +104,10 @@ export async function runAgent({ runId, history, settings, signal, emit }) {
     }
   }
 
-  throw new Error(`Agent dihentikan setelah ${settings.maxToolSteps} langkah tool agar tidak masuk loop.`);
+  if (settings.maxToolSteps) {
+    throw new Error(`Agent dihentikan setelah ${settings.maxToolSteps} langkah tool agar tidak masuk loop.`);
+  }
+  throw new Error("Agent berhenti tanpa jawaban.");
 }
 
 function sanitizeHistory(history) {
