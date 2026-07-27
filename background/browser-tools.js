@@ -1,6 +1,6 @@
 import { deleteAllCurrentPageCookies, deleteCurrentPageCookie, importCurrentPageCookies, listCurrentPageCookies, setCurrentPageCookie } from "./cookie-tools.js";
 import { clearNetwork, getNetwork, startNetwork, stopNetwork } from "./network-debugger.js";
-import { executeWebSearch, WEB_SEARCH_TOOL_NAME } from "./tools/search/search-tool.js";
+import { executeWebSearch, isWebSearchTool } from "./tools/search/search-tool.js";
 
 export async function getInitialTargetTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -10,11 +10,13 @@ export async function getInitialTargetTab() {
 }
 
 export async function executeTool(name, args, context) {
-  if (name === WEB_SEARCH_TOOL_NAME) return executeWebSearch(args, context);
+  if (isWebSearchTool(name)) return executeWebSearch(args, context);
   if (name === "list_tabs") return listTabs();
   if (name === "switch_tab") return switchTab(args, context);
+
   const tabId = context.targetTabId;
   if (!tabId) throw new Error("Target tab belum tersedia.");
+
   switch (name) {
     case "read_page": {
       if (context.settings.autoStartNetwork) {

@@ -85,7 +85,7 @@ function normalizeTask(args, settings) {
       mode,
       query: truncate(query, MAX_QUERY_LENGTH),
       searchType: normalizeSearchType(raw?.search_type || settings.searchDefaultType),
-      maxResults: clampInteger(raw?.max_results ?? raw?.num_results, 1, MAX_SEARCH_RESULTS, configuredLimit)
+      maxResults: clampInteger(raw?.max_results ?? raw?.num_results, 1, configuredLimit, configuredLimit)
     };
   }
 

@@ -39,8 +39,12 @@ export const TOOL_DEFINITIONS = [
   fn("wait", "Wait briefly for a page update.", {
     milliseconds: { type: "integer", minimum: 100, maximum: 10000 }
   }, ["milliseconds"]),
-  fn("navigate", "Navigate the target tab to an http or https URL.", {
-    url: { type: "string" }
+  fn("navigate", "Navigate the target tab to an http or https URL. When Web search tool is enabled, use this only for genuine browser interaction and set interaction_required to true.", {
+    url: { type: "string" },
+    interaction_required: {
+      type: "boolean",
+      description: "Set true only when the page must be opened for clicks, forms, login, visual inspection, or another browser-only interaction."
+    }
   }, ["url"]),
   fn("list_tabs", "List browser tabs in the current window."),
   fn("switch_tab", "Switch the agent target to another tab returned by list_tabs.", {
@@ -88,19 +92,6 @@ export const TOOL_DEFINITIONS = [
   fn("cookies_delete_all", "Delete all cookies applicable to the current page. Requires cookie writes enabled in Settings.")
 ];
 
-const SEARCH_ENABLED_NAVIGATE_TOOL = fn(
-  "navigate",
-  "Open a URL in the controlled browser only when real browser interaction or visual inspection is required. Set interaction_required to true. Do not use this tool for web research, searching, or reading/extracting a URL; use web_search_tool SEARCH or EXTRACT instead.",
-  {
-    url: { type: "string" },
-    interaction_required: {
-      type: "boolean",
-      description: "Must be true only when the page must actually be opened in the browser for clicking, filling, login, visual inspection, or another browser-only interaction."
-    }
-  },
-  ["url", "interaction_required"]
-);
-
 const COOKIE_WRITE_TOOL_NAMES = new Set([
   "cookies_set",
   "cookies_import",
@@ -109,17 +100,15 @@ const COOKIE_WRITE_TOOL_NAMES = new Set([
 ]);
 
 /**
- * Only advertise optional tools when the user enabled them.
+ * Advertise only tools that are enabled by the current settings.
+ * Search stays completely hidden from the model while disabled.
  */
 export function getToolDefinitions(settings = {}) {
-  let tools = settings.allowCookieWrites
+  const tools = settings.allowCookieWrites
     ? [...TOOL_DEFINITIONS]
     : TOOL_DEFINITIONS.filter((tool) => !COOKIE_WRITE_TOOL_NAMES.has(tool.function.name));
 
   if (settings.enableSearchTool) {
-    tools = tools.map((tool) =>
-      tool.function.name === "navigate" ? SEARCH_ENABLED_NAVIGATE_TOOL : tool
-    );
     tools.push(WEB_SEARCH_TOOL_DEFINITION);
   }
 
