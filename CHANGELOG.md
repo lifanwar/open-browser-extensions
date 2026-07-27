@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0
+
+- Added Web Search Tools (SEARCH & EXTRACT) for public web research and URL content extraction.
+- Added search-tools.js — search & fetch client with 9Router-compatible and Direct endpoint modes.
+- Added search-tool.js — search tool execution and result summarization logic.
+- Added styles.css — search UI styling in the sidepanel.
+- Added search configuration (enable/disable, endpoint, API key) in Settings.
+- Integrated search UI into sidepanel with mode toggle and result display.
+- Updated agent system prompt with SEARCH_TOOL_SYSTEM_POLICY for tool selection rules.
+- Updated tool-definitions.js to register web_search_tool in the tool list.
+
 ## 1.3.3
 
 - Moved live agent activity out of the composer area and into each assistant message.
@@ -10,9 +21,29 @@
 - Removed the legacy activity box above the input.
 - Preserved manual scroll position by auto-scrolling only when the chat is within 100 pixels of the bottom.
 
+## 1.3.2
+
+- Removed all cookie value redaction: HttpOnly and auth/session/token cookies are now fully readable and exportable.
+- Removed import restrictions: HttpOnly cookies, auth cookies, and cross-domain cookies are no longer rejected. Max 100 limit removed.
+- Removed delete-all confirmation requirement.
+- Added markdown pipe table rendering with horizontal scroll wrapper.
+
+## 1.3.1
+
+- Fixed API runs when Allow cookie paste/delete is disabled by omitting unavailable cookie-write schemas from the request.
+- Made the cookies_set function schema strict for broader OpenAI-compatible provider support.
+- Rebuilt Settings as a fixed header/footer dialog with an independently scrolling body.
+- Fixed switch focus positioning that could jump the Settings panel and leave a blank area.
+
+## 1.3.0
+
+- Added current-page cookie tools: list/export cookies, create/update, JSON import, delete one, and delete all.
+- Added cookies permission and a Settings switch for cookie write operations.
+- Cookie operations are scoped to the active page host.
+
 ## 1.2.0
 
-- Fixed debugger attach failures caused by required protocol version `0.1`.
+- Fixed debugger attach failures caused by required protocol version 0.1.
 - Added CDP protocol 1.3 with 1.2 and 1.1 fallback attempts.
 - Added real-time SSE/NDJSON answer streaming.
 - Added streamed provider reasoning/thinking trace support.
@@ -31,20 +62,3 @@
 ## 1.0.0
 
 - Initial clean-source browser agent.
-
-## 1.3.0
-- Added current-page cookie tools: list/export cookies, create/update, JSON import, delete one, and delete all.
-- Added `cookies` permission and a Settings switch for cookie write operations.
-- Cookie operations are scoped to the active page host.
-
-## 1.3.1
-- Fixed API runs when Allow cookie paste/delete is disabled by omitting unavailable cookie-write schemas from the request.
-- Made the cookies_set function schema strict for broader OpenAI-compatible provider support.
-- Rebuilt Settings as a fixed header/footer dialog with an independently scrolling body.
-- Fixed switch focus positioning that could jump the Settings panel and leave a blank area.
-
-## 1.3.2
-- Removed all cookie value redaction: HttpOnly and auth/session/token cookies are now fully readable and exportable.
-- Removed import restrictions: HttpOnly cookies, auth cookies, and cross-domain cookies are no longer rejected. Max 100 limit removed.
-- Removed delete-all confirmation requirement.
-- Added markdown pipe table rendering with horizontal scroll wrapper.
