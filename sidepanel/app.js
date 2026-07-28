@@ -1,4 +1,7 @@
 const chat = document.querySelector("#chat");
+const scrollTailButton = document.querySelector("#scrollTailButton");
+let ponytailFollowing = true;
+let ponytailAgentRunning = false;
 const conversationTitle = document.querySelector("#conversationTitle");
 const headerSubtitle = document.querySelector("#headerSubtitle");
 const composer = document.querySelector("#composer");
@@ -47,6 +50,7 @@ let activeTab = null;
 let doneEventContent = null;
 let liveDraft = null;
 let liveNodes = null;
+let queueSubmissionPending = false;
 
 const suggestions = [
   { icon: "spark", label: "Read this page and summarize the important points" },
@@ -182,6 +186,8 @@ chrome.runtime.onMessage.addListener((message) => {
   const { event, payload } = message;
 
   if (event === "status") {
+    ponytailAgentRunning = true;
+    updatePonytailButton();
     const status = String(payload || "Working…");
     headerSubtitle.textContent = status;
     updateCurrentThinkingLabel(status);
@@ -203,6 +209,8 @@ chrome.runtime.onMessage.addListener((message) => {
     ensureLiveAssistantRow();
     liveDraft.content += String(payload?.delta || "");
     updateLiveContent();
+    if (ponytailFollowing) scrollChatToBottom();
+    updatePonytailButton();
   }
 
   if (event === "model_step") {
@@ -212,6 +220,17 @@ chrome.runtime.onMessage.addListener((message) => {
       liveDraft.content = "";
       updateLiveContent();
     }
+  }
+
+  if (event === "queue_applied") {
+    if (liveDraft?.content) {
+      liveDraft.content = "";
+      updateLiveContent();
+    }
+    const count = Number(payload?.count || 0);
+    headerSubtitle.textContent = count > 1
+      ? `Applying ${count} queued instructions…`
+      : "Applying queued instruction…";
   }
 
   if (event === "tool_start") {
@@ -226,7 +245,10 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 
   if (event === "done") {
+    ponytailAgentRunning = false;
+    updatePonytailButton();
     doneEventContent = payload.content;
+    applyConversationContextState(payload.contextState);
     finalizeLiveActivities("done");
     const activities = cloneActivities(liveDraft?.activities);
     addAssistantMessageOnce(payload.content, payload.reasoning, activities).catch(console.error);
@@ -234,11 +256,15 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 
   if (event === "error") {
+    ponytailAgentRunning = false;
+    updatePonytailButton();
     finalizeLiveActivities("error");
     headerSubtitle.textContent = "API or agent error";
   }
 
   if (event === "cancelled") {
+    ponytailAgentRunning = false;
+    updatePonytailButton();
     finalizeLiveActivities("cancelled");
     headerSubtitle.textContent = "Stopped";
   }
@@ -251,7 +277,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 
 async function submitPrompt(rawContent) {
   const content = String(rawContent || "").trim();
-  if (!content || currentRunId) return;
+  if (!content) return;
+  if (currentRunId) {
+    await queuePrompt(rawContent, content);
+    return;
+  }
 
   if (!settings?.baseUrl || !settings?.model) {
     openSettings();
@@ -282,10 +312,15 @@ async function submitPrompt(rawContent) {
       type: "RUN_AGENT",
       runId: currentRunId,
       history,
+      contextState: getActiveConversation()?.contextState || null,
       settings
     });
+    const contextUpdated = applyConversationContextState(result?.contextState);
     if (result?.content && result.content !== doneEventContent) {
       await addAssistantMessageOnce(result.content, result.reasoning);
+    } else if (contextUpdated) {
+      touchActiveConversation();
+      await persistConversations();
     }
   } catch (error) {
     const message = normalizeError(error);
@@ -308,6 +343,69 @@ async function submitPrompt(rawContent) {
     setRunning(false);
     renderConversationList();
   }
+}
+
+async function queuePrompt(rawContent, content) {
+  if (!currentRunId || queueSubmissionPending) return;
+  const runId = currentRunId;
+  const submittedValue = String(rawContent || "");
+  const queuedHistoryMessage = {
+    role: "user",
+    content,
+    steering: true,
+    queueStatus: "pending",
+    createdAt: Date.now()
+  };
+
+  queueSubmissionPending = true;
+  history.push(queuedHistoryMessage);
+  touchActiveConversation();
+  renderChat();
+  renderConversationList();
+  updateComposerControls();
+
+  try {
+    const result = await sendMessage({
+      type: "QUEUE_AGENT_MESSAGE",
+      runId,
+      content
+    });
+    if (!result?.accepted) throw new Error("Instruksi tidak diterima oleh run aktif.");
+
+    delete queuedHistoryMessage.queueStatus;
+    promptInput.value = removeSubmittedInput(promptInput.value, submittedValue);
+    resizePrompt();
+    try {
+      await persistConversations();
+    } catch (error) {
+      headerSubtitle.textContent = `Instruction queued, but history was not saved: ${normalizeError(error)}`;
+    }
+  } catch (error) {
+    const messageIndex = history.indexOf(queuedHistoryMessage);
+    if (messageIndex >= 0) history.splice(messageIndex, 1);
+    touchActiveConversation();
+    renderChat();
+    renderConversationList();
+    try {
+      await persistConversations();
+    } catch {
+      // Keep the queue error visible; a later conversation write can retry persistence.
+    }
+    headerSubtitle.textContent = `Instruction not queued: ${normalizeError(error)}`;
+  } finally {
+    queueSubmissionPending = false;
+    updateComposerControls();
+  }
+}
+
+function removeSubmittedInput(currentValue, submittedValue) {
+  const current = String(currentValue || "");
+  const submitted = String(submittedValue || "");
+  if (current === submitted) return "";
+  if (submitted && current.startsWith(submitted)) {
+    return current.slice(submitted.length).replace(/^\r?\n/, "");
+  }
+  return current;
 }
 
 async function addAssistantMessageOnce(content, reasoning = "", activities = liveDraft?.activities) {
@@ -516,9 +614,11 @@ function createThinkingActivityNode(activity, live) {
 
   const step = document.createElement("span");
   step.className = "agent-event-pill";
-  step.textContent = activity.status === "running"
+  const preview = thinkingActivityPreview(activity);
+  step.textContent = preview || (activity.status === "running"
     ? activity.runningLabel || "Thinking…"
-    : activity.label || `Step ${activity.step || 1}`;
+    : activity.label || `Step ${activity.step || 1}`);
+  if (preview) step.title = preview;
 
   const state = createActivityState(activity.status);
   summary.append(createEventIcon("thinking"), title, step, state, chevronSvgNode());
@@ -538,6 +638,18 @@ function createThinkingActivityNode(activity, live) {
 
   details.append(summary, body);
   return details;
+}
+
+function thinkingActivityPreview(activity) {
+  const text = String(activity?.content || "")
+    .replace(/<\/?think>/gi, " ")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[`*_>#~-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return "";
+  const sentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() || text;
+  return sentence.length > 120 ? `${sentence.slice(0, 117).trimEnd()}…` : sentence;
 }
 
 function createToolActivityNode(activity) {
@@ -940,18 +1052,24 @@ function closeDrawer() {
 }
 
 function setRunning(running) {
-  sendButton.disabled = running || !promptInput.value.trim();
   conversationsButton.disabled = running;
-  promptInput.disabled = running;
-  stopButton.classList.toggle("hidden", !running);
-  sendButton.classList.toggle("hidden", running);
+  updateComposerControls();
   headerSubtitle.textContent = running ? "Working on the page…" : activeTabSubtitle();
 }
 
 function resizePrompt() {
   promptInput.style.height = "auto";
   promptInput.style.height = `${Math.min(170, Math.max(52, promptInput.scrollHeight))}px`;
-  sendButton.disabled = Boolean(currentRunId) || !promptInput.value.trim();
+  updateComposerControls();
+}
+
+function updateComposerControls() {
+  const running = Boolean(currentRunId);
+  const hasContent = Boolean(promptInput.value.trim());
+  const showSend = !running || hasContent;
+  sendButton.classList.toggle("hidden", !showSend);
+  stopButton.classList.toggle("hidden", showSend);
+  sendButton.disabled = !hasContent || queueSubmissionPending;
 }
 
 function openSettings() {
@@ -1356,6 +1474,7 @@ async function persistConversations() {
   conversations.sort((a, b) => Number(b.updatedAt || 0) - Number(a.updatedAt || 0));
   if (conversations.length > MAX_CONVERSATIONS) conversations.splice(MAX_CONVERSATIONS);
   for (const conversation of conversations) {
+    conversation.messages.forEach(ensureStoredMessageMetadata);
     if (conversation.messages.length > MAX_MESSAGES_PER_CONVERSATION) {
       conversation.messages.splice(0, conversation.messages.length - MAX_MESSAGES_PER_CONVERSATION);
     }
@@ -1373,7 +1492,8 @@ function createConversation(title = "New conversation") {
     title,
     createdAt: now,
     updatedAt: now,
-    messages: []
+    messages: [],
+    contextState: null
   };
 }
 
@@ -1384,8 +1504,50 @@ function normalizeConversation(value) {
     title: String(value.title || "New conversation"),
     createdAt: Number(value.createdAt || Date.now()),
     updatedAt: Number(value.updatedAt || value.createdAt || Date.now()),
-    messages: Array.isArray(value.messages) ? value.messages : []
+    messages: Array.isArray(value.messages)
+      ? value.messages.map(normalizeStoredMessage).filter(Boolean)
+      : [],
+    contextState: normalizeStoredContextState(value.contextState)
   };
+}
+
+function normalizeStoredMessage(value, index) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    ...value,
+    id: String(value.id || crypto.randomUUID()),
+    createdAt: Number(value.createdAt || Date.now() + index)
+  };
+}
+
+function ensureStoredMessageMetadata(message, index) {
+  if (!message || typeof message !== "object") return;
+  if (!message.id) message.id = crypto.randomUUID();
+  if (!Number.isFinite(Number(message.createdAt))) message.createdAt = Date.now() + index;
+}
+
+function normalizeStoredContextState(value) {
+  if (!value || typeof value !== "object") return null;
+  const summary = String(value.summary || "").trim().slice(0, 6000);
+  const compactedThroughId = String(value.compactedThroughId || "").trim();
+  if (!summary || !compactedThroughId) return null;
+  return {
+    version: 1,
+    summary,
+    compactedThroughId,
+    updatedAt: Number(value.updatedAt || 0)
+  };
+}
+
+function applyConversationContextState(value) {
+  const next = normalizeStoredContextState(value);
+  const conversation = getActiveConversation();
+  if (!next || !conversation) return false;
+  const previous = JSON.stringify(conversation.contextState || null);
+  const current = JSON.stringify(next);
+  if (previous === current) return false;
+  conversation.contextState = next;
+  return true;
 }
 
 function getActiveConversation() {
@@ -1424,10 +1586,33 @@ function formatConversationTime(timestamp) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
 }
 
+
+
+function updatePonytailButton() {
+  if (!scrollTailButton) return;
+  const distance = chat.scrollHeight - chat.scrollTop - chat.clientHeight;
+  const show = ponytailAgentRunning || distance > 120;
+  scrollTailButton.classList.toggle("visible", show);
+  scrollTailButton.classList.toggle("loading", ponytailAgentRunning);
+}
+
+chat.addEventListener("scroll", () => {
+  ponytailFollowing = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120;
+  updatePonytailButton();
+});
+
+if (scrollTailButton) {
+  scrollTailButton.addEventListener("click", () => {
+    ponytailFollowing = true;
+    chat.scrollTo({ top: chat.scrollHeight, behavior: "smooth" });
+  });
+}
+
 function scrollChatToBottom() {
   requestAnimationFrame(() => {
     const atBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight < 100;
-    if (atBottom) chat.scrollTop = chat.scrollHeight;
+    if (atBottom || ponytailFollowing) chat.scrollTop = chat.scrollHeight;
+    updatePonytailButton();
   });
 }
 

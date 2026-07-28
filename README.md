@@ -10,6 +10,7 @@ A clean, non-obfuscated Chrome Manifest V3 browser agent with a Merlin-style sid
 * SSE and NDJSON streaming with incremental answer rendering.
 * Provider reasoning trace support, hidden behind a collapsible button by default.
 * Multiple locally stored conversations with create, select, auto-title, and delete.
+* Rolling context compaction that keeps full chat locally while sending compact memory plus recent turns to the model.
 * System, light, and dark appearance modes.
 * CDP Network capture using protocol 1.3 with 1.2/1.1 fallbacks.
 * Tolerant provider parser for JSON, SSE, BOM, control bytes, and proxy text.
@@ -49,8 +50,14 @@ Enable **Web search tool** from **Settings → Browser tools**, then configure *
 
 The extension displays only reasoning/thinking text returned by the configured provider. It does not invent or extract hidden reasoning. Model steps and tool calls are shown in an expandable activity timeline attached to the assistant message.
 
+## Context compaction
+
+Long conversations remain fully available in the local conversation history. Once the model-facing history grows beyond an approximate 24,000-character budget, older completed turns are merged into a compact memory while at least eight recent messages and roughly 12,000 recent characters remain verbatim.
+
+The compact memory is stored per conversation and reused on later runs. Compaction uses the configured chat model without tools. If the optional summary request is unsupported or fails, the agent falls back to the existing full-history behavior instead of blocking the run.
+
 ## Privacy
 
 Settings, API credentials, conversations, and appearance are stored in the local Chrome profile. Prompts, selected page content, tool results, search queries, fetched URLs, and captured Network data may be sent to the endpoints configured by the user.
-::: 
+:::
 

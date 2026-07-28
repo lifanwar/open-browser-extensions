@@ -110,6 +110,36 @@ assert.equal(receivedRequest.body.stream, true);
 assert.equal(receivedRequest.body.tools.length, TOOL_DEFINITIONS.length);
 assert.equal(normalDeltas.find((item) => item.type === "reasoning")?.delta, "I will read the current page.");
 
+
+let noToolsRequest;
+const noToolsServer = http.createServer((request, response) => {
+  const chunks = [];
+  request.on("data", (chunk) => chunks.push(chunk));
+  request.on("end", () => {
+    noToolsRequest = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({
+      choices: [{ message: { role: "assistant", content: "compact memory" } }]
+    }));
+  });
+});
+await new Promise((resolve) => noToolsServer.listen(0, "127.0.0.1", resolve));
+const noToolsPort = noToolsServer.address().port;
+await createChatCompletion({
+  settings: {
+    baseUrl: `http://127.0.0.1:${noToolsPort}/v1`,
+    model: "summary-model",
+    streamResponses: false,
+    temperature: 0.1
+  },
+  messages: [{ role: "user", content: "summarize" }],
+  tools: []
+});
+noToolsServer.close();
+assert.equal(noToolsRequest.stream, false);
+assert.ok(!Object.hasOwn(noToolsRequest, "tools"));
+assert.ok(!Object.hasOwn(noToolsRequest, "tool_choice"));
+
 let streamRequest;
 const streamDeltas = [];
 const streamServer = http.createServer((request, response) => {
@@ -151,7 +181,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
-assert.equal(manifest.version, "1.3.3");
+assert.equal(manifest.version, "1.5.0");
 assert.equal(manifest.background.type, "module");
 assert.ok(manifest.permissions.includes("debugger"));
 assert.ok(manifest.permissions.includes("sidePanel"));
@@ -170,16 +200,42 @@ assert.ok(sidepanelJs.includes("Thought process"));
 assert.ok(sidepanelJs.includes("agent-timeline"));
 assert.ok(sidepanelJs.includes("tool_start"));
 assert.ok(sidepanelJs.includes("reasoning_delta"));
+assert.ok(sidepanelJs.includes("thinkingActivityPreview"));
+assert.ok(sidepanelJs.includes("const preview = thinkingActivityPreview(activity)"));
 assert.ok(sidepanelJs.includes("agentConversations"));
+assert.ok(sidepanelJs.includes("QUEUE_AGENT_MESSAGE"));
+assert.ok(sidepanelJs.includes("updateComposerControls"));
+assert.ok(sidepanelJs.includes('queueStatus: "pending"'));
+assert.ok(sidepanelJs.includes("history.indexOf(queuedHistoryMessage)"));
+assert.ok(sidepanelJs.includes("contextState: getActiveConversation()?.contextState || null"));
+assert.ok(sidepanelJs.includes("applyConversationContextState"));
+assert.ok(!sidepanelJs.includes("promptInput.disabled = running"));
 assert.ok(!sidepanelHtml.includes('id="activityShell"'));
 
 const agentSource = fs.readFileSync(path.join(root, "background/agent.js"), "utf8");
 assert.ok(agentSource.includes('emit("step_start"'));
 assert.ok(agentSource.includes("toolCallId"));
+assert.ok(agentSource.includes("[User instruction sent during active run]"));
+assert.ok(agentSource.includes("requires replanning the remaining tool calls"));
+assert.ok(agentSource.includes("Recreate only unfinished work"));
+assert.ok(agentSource.includes("replanRequired: true"));
+assert.ok(agentSource.includes("Buffer model text until the response is classified"));
+assert.ok(agentSource.includes('final: true'));
+assert.ok(agentSource.includes("prepareConversationContext"));
+assert.ok(agentSource.includes("[Compacted conversation memory]"));
+assert.ok(!agentSource.includes("queuedMessagesRequestToolSkip"));
+
+const serviceWorkerSource = fs.readFileSync(path.join(root, "background/service-worker.js"), "utf8");
+assert.ok(serviceWorkerSource.includes('case "QUEUE_AGENT_MESSAGE"'));
+assert.ok(serviceWorkerSource.includes("queue: []"));
+assert.ok(serviceWorkerSource.includes("let emitChain = Promise.resolve()"));
+assert.ok(serviceWorkerSource.includes("await emitChain"));
+assert.ok(serviceWorkerSource.includes("contextState: message.contextState || null"));
 
 const requiredFiles = [
   "background/service-worker.js",
   "background/agent.js",
+  "background/context-compaction.js",
   "background/browser-tools.js",
   "background/network-debugger.js",
   "content/browser.js",

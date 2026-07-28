@@ -194,7 +194,7 @@ svg { display: block; }
 .message-content a { color: var(--accent-strong); text-decoration: none; }
 .message-content a:hover { text-decoration: underline; }
 
-.composer-zone { z-index: 6; padding: 0 12px 10px; background: linear-gradient(to top, #fff 68%, rgba(255,255,255,0)); }
+.composer-zone { position: relative; z-index: 6; padding: 0 12px 10px; background: linear-gradient(to top, #fff 68%, rgba(255,255,255,0)); }
 .composer {
   position: relative;
   border: 1px solid var(--border-strong);
@@ -884,3 +884,89 @@ html[data-theme="dark"] .table-wrapper th {
   color: var(--muted-soft);
 }
 .search-source-external svg { width: 14px; height: 14px; }
+
+
+/* Ponytail scroll helper - isolated UI addition */
+.scroll-tail-button {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  z-index: 7;
+  min-height: 28px;
+  max-width: calc(100vw - 32px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .11);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, calc(-100% - 3px)) scale(.96);
+  transition: opacity .14s ease, transform .16s ease, border-color .14s ease, background .14s ease;
+}
+.scroll-tail-button.visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translate(-50%, calc(-100% - 6px)) scale(1);
+}
+.scroll-tail-button:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-strong);
+}
+.scroll-tail-button:active {
+  transform: translate(-50%, calc(-100% - 5px)) scale(.97);
+}
+.scroll-tail-icon {
+  font-size: 13px;
+  line-height: 1;
+}
+.scroll-tail-text { line-height: 1; }
+.scroll-tail-dots {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 25px;
+}
+.scroll-tail-dots > span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--muted-soft);
+  animation: ponyDot 1.05s ease-in-out infinite;
+}
+.scroll-tail-dots > span:nth-child(2) { animation-delay: .14s; }
+.scroll-tail-dots > span:nth-child(3) { animation-delay: .28s; }
+.scroll-tail-button.loading {
+  padding-inline: 8px;
+}
+.scroll-tail-button.loading .scroll-tail-icon,
+.scroll-tail-button.loading .scroll-tail-text {
+  display: none;
+}
+.scroll-tail-button.loading .scroll-tail-dots {
+  display: flex;
+}
+@keyframes ponyDot {
+  0%, 60%, 100% {
+    opacity: .35;
+    transform: scale(.82);
+    background: var(--muted-soft);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.12);
+    background: var(--accent-strong);
+  }
+}

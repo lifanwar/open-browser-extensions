@@ -27,8 +27,12 @@
     </header>
 
     <main id="chat" class="chat" aria-live="polite"></main>
-
     <section class="composer-zone">
+      <button id="scrollTailButton" class="scroll-tail-button" type="button" aria-label="Scroll to bottom" title="Scroll to bottom">
+        <span class="scroll-tail-icon" aria-hidden="true">↓</span>
+        <span class="scroll-tail-text">Scroll to bottom</span>
+        <span class="scroll-tail-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+      </button>
       <form id="composer" class="composer">
         <textarea id="prompt" rows="1" placeholder="Ask anything or give a browser task" aria-label="Message"></textarea>
         <div class="composer-toolbar">

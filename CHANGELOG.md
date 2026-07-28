@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.0
+
+- Added rolling per-conversation context compaction for long chats.
+- Kept the complete UI conversation history local while sending compact memory and recent turns to the model.
+- Added stable message IDs so compaction boundaries survive saving, reopening, and front-pruning of old messages.
+- Added a provider-safe fallback that preserves the previous full-history behavior when summarization is unavailable.
+- Omitted `tools` and `tool_choice` from summary-only Chat Completions requests.
+- Added context-compaction, persistence, no-tools request, and regression tests.
+
 ## 1.4.0
 
 - Added Web Search Tools (SEARCH & EXTRACT) for public web research and URL content extraction.
