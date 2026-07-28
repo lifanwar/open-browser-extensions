@@ -17,10 +17,12 @@ export async function createChatCompletion({ settings, messages, tools, signal, 
   const body = {
     model: settings.model,
     messages,
-    tools,
-    tool_choice: "auto",
     stream: wantsStream
   };
+  if (Array.isArray(tools) && tools.length) {
+    body.tools = tools;
+    body.tool_choice = "auto";
+  }
 
   const temperature = Number(settings.temperature);
   if (Number.isFinite(temperature)) body.temperature = temperature;
@@ -70,23 +72,32 @@ async function consumeStreamingCompletion(body, contentType, onDelta, signal) {
   let buffer = "";
   let raw = "";
 
-  while (true) {
-    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    raw += chunk;
-    buffer += chunk;
-    buffer = consumeCompleteLines(buffer, state, onDelta);
-  }
+  try {
+    while (true) {
+      if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      const { value, done } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      raw += chunk;
+      buffer += chunk;
+      buffer = consumeCompleteLines(buffer, state, onDelta);
+    }
 
-  const tail = decoder.decode();
-  raw += tail;
-  buffer += tail;
-  consumeCompleteLines(`${buffer}\n`, state, onDelta);
+    const tail = decoder.decode();
+    raw += tail;
+    buffer += tail;
+    consumeCompleteLines(`${buffer}\n`, state, onDelta);
 
-  if (state.sawDelta || state.sawCompleteMessage) {
-    return buildStreamMessage(state);
+    if (state.sawDelta || state.sawCompleteMessage) {
+      return buildStreamMessage(state);
+    }
+  } finally {
+    // Ensure stream resources are released on success, abort, or provider errors.
+    try {
+      reader.releaseLock();
+    } catch {
+      // Reader may already be released by the browser runtime.
+    }
   }
 
   // Some compatible providers ignore stream=true and return one normal JSON body.

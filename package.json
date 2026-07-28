@@ -1,9 +1,9 @@
 {
   "name": "open-browser-agent-extension",
   "private": true,
-  "version": "1.3.3",
+  "version": "1.5.0",
   "type": "module",
   "scripts": {
-    "check": "node tests/check.mjs"
+    "check": "node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs"
   }
 }
