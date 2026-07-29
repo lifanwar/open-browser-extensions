@@ -1734,6 +1734,8 @@ function showCopiedState(btn) {
     btn.setAttribute("aria-label", btn.dataset.originalAriaLabel || "Copy");
     if (btn.dataset.originalTitle) btn.setAttribute("title", btn.dataset.originalTitle);
     else btn.removeAttribute("title");
+    // Ponytail: skip restore if btn was removed from DOM (renderChat replaces children).
+    if (!btn.isConnected) { delete btn.dataset.copyResetTimer; return; }
     delete btn.dataset.copyResetTimer;
   }, 1800);
   btn.dataset.copyResetTimer = String(timer);
