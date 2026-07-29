@@ -487,10 +487,19 @@ function renderChat() {
 
   for (const item of history) {
     if (!item?.content && !item?.reasoning) continue;
+    // During a live run, render queued steering messages after the live row
+    if (liveDraft && item.steering) continue;
     chat.append(createMessageRow(item));
   }
 
-  if (liveDraft) ensureLiveAssistantRow();
+  if (liveDraft) {
+    ensureLiveAssistantRow();
+    // Render queued user messages below the running tools
+    for (const item of history) {
+      if (!item?.content || !item.steering) continue;
+      chat.append(createMessageRow(item));
+    }
+  }
   scrollChatToBottom();
 }
 
