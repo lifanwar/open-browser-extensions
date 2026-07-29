@@ -3,6 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 import {
   buildChatCompletionsUrl,
   createChatCompletion,
@@ -181,7 +182,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
-assert.equal(manifest.version, "1.5.0");
+assert.equal(manifest.version, "1.5.1");
 assert.equal(manifest.background.type, "module");
 assert.ok(manifest.permissions.includes("debugger"));
 assert.ok(manifest.permissions.includes("sidePanel"));
@@ -192,10 +193,15 @@ assert.match(networkSource, /"1\.3"/);
 assert.doesNotMatch(networkSource, /attach\(\{ tabId \}, "0\.1"\)/);
 
 const sidepanelHtml = fs.readFileSync(path.join(root, "sidepanel/index.html"), "utf8");
+assert.ok(sidepanelHtml.includes('<script src="syntax-highlighter.js"></script>'));
+assert.ok(sidepanelHtml.indexOf('syntax-highlighter.js') < sidepanelHtml.indexOf('app.js'));
 for (const id of ["conversationDrawer", "newConversationButton", "conversationList", "appearance", "streamResponses", "settingsBody", "allowCookieWrites"]) {
   assert.ok(sidepanelHtml.includes(`id="${id}"`), `Missing UI ${id}`);
 }
 const sidepanelJs = fs.readFileSync(path.join(root, "sidepanel/app.js"), "utf8");
+assert.ok(sidepanelJs.includes("SyntaxHighlight?.renderCodeBlock"));
+assert.ok(sidepanelJs.includes("writeClipboard"));
+assert.ok(sidepanelJs.includes("showCopiedState"));
 assert.ok(sidepanelJs.includes("Thought process"));
 assert.ok(sidepanelJs.includes("agent-timeline"));
 assert.ok(sidepanelJs.includes("tool_start"));
@@ -232,6 +238,25 @@ assert.ok(serviceWorkerSource.includes("let emitChain = Promise.resolve()"));
 assert.ok(serviceWorkerSource.includes("await emitChain"));
 assert.ok(serviceWorkerSource.includes("contextState: message.contextState || null"));
 
+const syntaxHighlighterPath = path.join(root, "sidepanel/syntax-highlighter.js");
+const syntaxHighlighterSource = fs.readFileSync(syntaxHighlighterPath, "utf8");
+const syntaxContext = vm.createContext({});
+vm.runInContext(syntaxHighlighterSource, syntaxContext);
+const syntax = syntaxContext.SyntaxHighlight;
+assert.ok(syntax, "SyntaxHighlight must be attached globally");
+assert.equal(syntax.normalizeLanguage("JS"), "javascript");
+assert.equal(syntax.normalizeLanguage("yml"), "yaml");
+const highlightedJs = syntax.renderCodeBlock('const answer = 42; // safe', 'js');
+assert.match(highlightedJs, /code-block-toolbar/);
+assert.match(highlightedJs, /tok-keyword/);
+assert.match(highlightedJs, /tok-number/);
+assert.match(highlightedJs, /tok-comment/);
+assert.match(highlightedJs, />JavaScript</);
+const highlightedMarkup = syntax.renderCodeBlock('<script>alert("x")<\/script>', 'html');
+assert.ok(!highlightedMarkup.includes('<script>'), "Highlighted source must not inject executable markup");
+assert.match(highlightedMarkup, /tok-tag/);
+assert.doesNotMatch(syntaxHighlighterSource, /eval\s*\(/);
+
 const requiredFiles = [
   "background/service-worker.js",
   "background/agent.js",
@@ -240,6 +265,7 @@ const requiredFiles = [
   "background/network-debugger.js",
   "content/browser.js",
   "sidepanel/index.html",
+  "sidepanel/syntax-highlighter.js",
   "sidepanel/app.js"
 ];
 for (const file of requiredFiles) assert.ok(fs.existsSync(path.join(root, file)), `Missing ${file}`);

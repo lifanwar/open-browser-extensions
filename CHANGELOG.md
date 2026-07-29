@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1
+
+- Added dependency-free syntax highlighting for code blocks with toolbar, language label, and copy button.
+- Added reusable `writeClipboard` + `showCopiedState` copy helpers for code blocks and tables.
+- Enhanced code block presentation with dark-themed styling, rounded corners, and shadow.
+- Added copy button to pipe tables for table-as-text export.
+- General naming cleanup.
+
 ## 1.5.0
 
 - Added rolling per-conversation context compaction for long chats.
