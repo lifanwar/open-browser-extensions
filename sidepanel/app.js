@@ -1344,7 +1344,7 @@ function renderMarkdown(target, markdown) {
   let escaped = escapeHtml(raw).replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, language, code) => {
     const index = codeBlocks.length;
     const lang = escapeHtml(language.trim());
-    codeBlocks.push(`<pre><code data-language="${lang}">${code.replace(/^\n|\n$/g, "")}</code></pre>`);
+    codeBlocks.push(`<div class="code-block-wrapper"><pre><code data-language="${lang}">${code.replace(/^\n|\n$/g, "")}</code></pre><button class="copy-btn" onclick="copyCode(this)" aria-label="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div>`);
     return `@@CODEBLOCK_${index}@@`;
   });
 
@@ -1447,6 +1447,7 @@ function renderTableHtml(markdown) {
     html += "</tr>";
   });
   html += "</tbody></table></div>";
+  html += `<button class="copy-btn" onclick="copyTable(this)" aria-label="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div>`;
   return html;
 }
 
@@ -1663,6 +1664,33 @@ function suggestionSvg(type) {
 }
 
 function value(id) { return document.getElementById(id).value.trim(); }
+function copyCode(btn) {
+  const wrapper = btn.closest('.code-block-wrapper');
+  const code = wrapper?.querySelector('code')?.textContent || '';
+  navigator.clipboard.writeText(code).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+function copyTable(btn) {
+  const wrapper = btn.closest('.table-wrapper');
+  const table = wrapper?.querySelector('table');
+  const headers = Array.from(table?.querySelectorAll('th') || []).map(th => th.textContent.trim());
+  const rows = Array.from(table?.querySelectorAll('tbody tr') || []).map(tr =>
+    Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim())
+  );
+  const text = headers.length ? [headers.join(' | '), ...rows.map(r => r.join(' | '))] : [];
+  navigator.clipboard.writeText(text.join('\n')).then(() => {
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
 function checked(id) { return document.getElementById(id).checked; }
 function setValue(id, valueToSet) { document.getElementById(id).value = valueToSet ?? ""; }
 function setChecked(id, valueToSet) { document.getElementById(id).checked = Boolean(valueToSet); }
