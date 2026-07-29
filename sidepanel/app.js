@@ -1664,13 +1664,19 @@ function suggestionSvg(type) {
 }
 
 function value(id) { return document.getElementById(id).value.trim(); }
+const CHECK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>';
 function copyCode(btn) {
   const wrapper = btn.closest('.code-block-wrapper');
   const code = wrapper?.querySelector('code')?.textContent || '';
   // Try modern Clipboard API; fallback to execCommand for older contexts.
   navigator.clipboard.writeText(code).then(() => {
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = CHECK_SVG;
     btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 2000);
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = btn.dataset.originalHtml;
+    }, 2000);
   }).catch(() => {
     const textarea = document.createElement('textarea');
     textarea.value = code;
@@ -1678,8 +1684,13 @@ function copyCode(btn) {
     textarea.select();
     try { document.execCommand('copy'); } catch (e) {}
     document.body.removeChild(textarea);
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = CHECK_SVG;
     btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 2000);
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = btn.dataset.originalHtml;
+    }, 2000);
   });
 }
 
@@ -1692,8 +1703,13 @@ function copyTable(btn) {
   );
   const text = headers.length ? [headers.join(' | '), ...rows.map(r => r.join(' | '))] : [];
   navigator.clipboard.writeText(text.join('\n')).then(() => {
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = CHECK_SVG;
     btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 2000);
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = btn.dataset.originalHtml;
+    }, 2000);
   }).catch(() => {
     const textarea = document.createElement('textarea');
     textarea.value = text.join('\n');
@@ -1701,8 +1717,13 @@ function copyTable(btn) {
     textarea.select();
     try { document.execCommand('copy'); } catch (e) {}
     document.body.removeChild(textarea);
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.innerHTML = CHECK_SVG;
     btn.classList.add('copied');
-    setTimeout(() => btn.classList.remove('copied'), 2000);
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = btn.dataset.originalHtml;
+    }, 2000);
   });
 }
 
