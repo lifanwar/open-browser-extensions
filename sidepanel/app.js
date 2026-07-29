@@ -1436,7 +1436,7 @@ function renderTableHtml(markdown) {
     return "";
   });
   const rows = lines.slice(2).filter((l) => l.trim().startsWith("|"));
-  let html = '<div class="table-wrapper"><table><thead><tr>';
+  let html = '<div class="table-wrapper"><div class="table-scroll"><table><thead><tr>';
   headers.forEach((h, i) => {
     html += `<th${aligns[i] || ""}>${h}</th>`;
   });
@@ -1668,7 +1668,7 @@ function suggestionSvg(type) {
 }
 
 function value(id) { return document.getElementById(id).value.trim(); }
-const CHECK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const CHECK_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 
 async function writeClipboard(text) {
   if (navigator.clipboard?.writeText) {

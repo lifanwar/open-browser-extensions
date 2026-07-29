@@ -798,10 +798,12 @@ html[data-theme="dark"] .settings-body::-webkit-scrollbar-thumb { background: #3
 /* Table wrapper — horizontal scroll for wide tables */
 .table-wrapper {
   position: relative;
-  overflow-x: auto;
   margin: 10px 0;
   border: 1px solid var(--border);
   border-radius: 10px;
+}
+.table-wrapper .table-scroll {
+  overflow-x: auto;
 }
 .table-wrapper .copy-btn { position: absolute; top: 6px; right: 6px; padding: 8px; background: #fff; border: 1px solid #ddd; border-radius: 6px; color: #333; cursor: pointer; transition: all 0.2s; z-index: 10; display: flex; align-items: center; justify-content: center; }
 @media (prefers-color-scheme: dark) {
