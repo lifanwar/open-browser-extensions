@@ -194,7 +194,7 @@ svg { display: block; }
 .message-content .copy-btn { position: absolute; top: 8px; right: 8px; padding: 8px; background: #171717; border: 1px solid #3e3e3e; border-radius: 6px; color: #ddd; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
 .message-content .copy-btn:hover { background: #2e2e2e; }
 .message-content .copy-btn:active { transform: scale(0.96); }
-.message-content .copy-btn.copied { background: #22c55e; color: #fff; }
+.message-content .copy-btn.copied { background: #424242; color: #fff; }
 .message-content pre code { padding: 0; background: none; color: inherit; }
 .message-content a { color: var(--accent-strong); text-decoration: none; }
 .message-content a:hover { text-decoration: underline; }
@@ -708,7 +708,7 @@ html[data-theme="dark"] .settings-body::-webkit-scrollbar-thumb { background: #3
   .table-wrapper .copy-btn:hover { background: #2e2e2e; }
 }
 .table-wrapper .copy-btn:active { transform: scale(0.96); }
-.table-wrapper .copy-btn.copied { background: #22c55e; color: #fff; }
+.table-wrapper .copy-btn.copied { background: var(--surface-strong); color: var(--foreground); }
   overflow-x: auto;
   margin: 10px 0;
   border-radius: 10px;
