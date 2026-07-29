@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2
+
+- Fixed memory leaks in network debugger: prunes per-tab state on tab close so `states` Map doesn't grow unbounded.
+- Truncated network response bodies at storage time (200KB) instead of serialization time, preventing raw body accumulation in memory.
+- Guarded `showCopiedState` timer against detached DOM nodes — skips restore if the button was removed from the tree (e.g. chat re-render).
+
 ## 1.5.1
 
 - Added dependency-free syntax highlighting for code blocks with toolbar, language label, and copy button.
