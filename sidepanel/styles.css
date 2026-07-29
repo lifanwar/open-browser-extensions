@@ -191,6 +191,115 @@ svg { display: block; }
 .message-content code { padding: 2px 5px; border-radius: 5px; background: #f1f1f1; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .message-content pre { margin: 10px 0; padding: 12px; overflow-x: auto; border: 1px solid #2e2e2e; border-radius: 12px; background: #171717; color: #f5f5f5; }
 .message-content pre code { padding: 0; background: none; color: inherit; }
+
+/* Dependency-free syntax highlighting — aligned with clean-source style. */
+.message-content .code-block-wrapper {
+  --code-background: #0d1117;
+  --code-toolbar: #151b23;
+  --code-border: #30363d;
+  --code-foreground: #e6edf3;
+  position: relative;
+  margin: 12px 0;
+  overflow: hidden;
+  border: 1px solid var(--code-border);
+  border-radius: 12px;
+  background: var(--code-background);
+  box-shadow: 0 8px 24px rgba(13, 17, 23, .14);
+}
+.message-content .code-block-toolbar {
+  min-height: 37px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 8px 0 13px;
+  border-bottom: 1px solid var(--code-border);
+  background: var(--code-toolbar);
+}
+.message-content .code-block-language {
+  overflow: hidden;
+  color: #9da7b3;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .075em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.message-content .code-block-wrapper .copy-btn {
+  position: static;
+  min-height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #aab4c0;
+  cursor: pointer;
+  font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+  transition: background .16s ease, border-color .16s ease, color .16s ease, transform .16s ease;
+}
+.message-content .code-block-wrapper .copy-btn svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.message-content .code-block-wrapper .copy-btn:hover {
+  border-color: #3d4652;
+  background: #202733;
+  color: #f0f6fc;
+}
+.message-content .code-block-wrapper .copy-btn:active { transform: scale(.97); }
+.message-content .code-block-wrapper .copy-btn.copied { color: #7ee787; }
+.message-content .code-block-wrapper pre {
+  margin: 0;
+  padding: 15px 16px 17px;
+  overflow: auto;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: var(--code-background);
+  color: var(--code-foreground);
+  scrollbar-color: #46505c transparent;
+  tab-size: 2;
+}
+.message-content .code-block-wrapper pre:focus-visible { box-shadow: inset 0 0 0 2px rgba(88, 166, 255, .55); }
+.message-content .code-block-wrapper pre::-webkit-scrollbar { width: 10px; height: 10px; }
+.message-content .code-block-wrapper pre::-webkit-scrollbar-thumb { border: 3px solid var(--code-background); border-radius: 10px; background: #46505c; }
+.message-content .code-block-wrapper pre::-webkit-scrollbar-corner { background: var(--code-background); }
+.message-content .code-block-wrapper code.syntax-code {
+  min-width: max-content;
+  display: block;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--code-foreground);
+  font: 12.5px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  overflow-wrap: normal;
+  white-space: pre;
+  word-break: normal;
+}
+.message-content .tok-comment { color: #8b949e; font-style: italic; }
+.message-content .tok-string { color: #a5d6ff; }
+.message-content .tok-keyword { color: #ff7b72; }
+.message-content .tok-number { color: #79c0ff; }
+.message-content .tok-constant { color: #79c0ff; }
+.message-content .tok-function { color: #d2a8ff; }
+.message-content .tok-type { color: #ffa657; }
+.message-content .tok-property { color: #7ee787; }
+.message-content .tok-tag { color: #7ee787; }
+.message-content .tok-attr { color: #79c0ff; }
+.message-content .tok-variable { color: #ffa657; }
+.message-content .tok-operator { color: #ff7b72; }
+.message-content .tok-punctuation { color: #c9d1d9; }
+.message-content .code-block-wrapper ::selection { background: rgba(56, 139, 253, .38); }
 .message-content a { color: var(--accent-strong); text-decoration: none; }
 .message-content a:hover { text-decoration: underline; }
 
@@ -663,7 +772,7 @@ html[data-theme="dark"] .message-row.error .message-content {
   background: #2b1719;
   color: #fecaca;
 }
-html[data-theme="dark"] .message-content code { background: #252830; }
+html[data-theme="dark"] .message-content code:not(.syntax-code) { background: #252830; }
 html[data-theme="dark"] .message-content pre {
   border-color: #343740;
   background: #0b0c0f;
@@ -688,11 +797,30 @@ html[data-theme="dark"] .settings-body::-webkit-scrollbar-thumb { background: #3
 
 /* Table wrapper — horizontal scroll for wide tables */
 .table-wrapper {
-  overflow-x: auto;
+  position: relative;
   margin: 10px 0;
-  border-radius: 10px;
   border: 1px solid var(--border);
+  border-radius: 10px;
 }
+.table-wrapper .table-scroll {
+  overflow-x: auto;
+}
+.table-wrapper .copy-btn { position: absolute; top: 6px; right: 6px; padding: 8px; background: #fff; border: 1px solid #ddd; border-radius: 6px; color: #333; cursor: pointer; transition: all 0.2s; z-index: 10; display: flex; align-items: center; justify-content: center; }
+@media (prefers-color-scheme: dark) {
+  .table-wrapper .copy-btn { background: #171717; border: 1px solid #3e3e3e; color: #ddd; }
+}
+@media (prefers-color-scheme: light) {
+  .table-wrapper .copy-btn:hover { background: #f5f5f5; }
+}
+@media (prefers-color-scheme: dark) {
+  .table-wrapper .copy-btn:hover { background: #2e2e2e; }
+}
+.table-wrapper .copy-btn:hover { background: #f0f0f0; }
+@media (prefers-color-scheme: dark) {
+  .table-wrapper .copy-btn:hover { background: #2e2e2e; }
+}
+.table-wrapper .copy-btn:active { transform: scale(0.96); }
+.table-wrapper .copy-btn.copied { background: var(--surface-strong); color: var(--foreground); }
 .table-wrapper table {
   width: 100%;
   border-collapse: collapse;
@@ -886,7 +1014,7 @@ html[data-theme="dark"] .table-wrapper th {
 .search-source-external svg { width: 14px; height: 14px; }
 
 
-/* Ponytail scroll helper - isolated UI addition */
+/* Scroll helper - isolated UI addition */
 .scroll-tail-button {
   position: absolute;
   left: 50%;

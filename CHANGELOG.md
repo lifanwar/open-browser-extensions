@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.2
+
+- Fixed memory leaks in network debugger: prunes per-tab state on tab close so `states` Map doesn't grow unbounded.
+- Truncated network response bodies at storage time (200KB) instead of serialization time, preventing raw body accumulation in memory.
+- Guarded `showCopiedState` timer against detached DOM nodes — skips restore if the button was removed from the tree (e.g. chat re-render).
+- Fixed `executeScript` always returning `null` because the async IIFE was missing `return` before the evaluated code.
+
+## 1.5.1
+
+- Added dependency-free syntax highlighting for code blocks with toolbar, language label, and copy button.
+- Added reusable `writeClipboard` + `showCopiedState` copy helpers for code blocks and tables.
+- Enhanced code block presentation with dark-themed styling, rounded corners, and shadow.
+- Added copy button to pipe tables for table-as-text export.
+- General naming cleanup.
+
 ## 1.5.0
 
 - Added rolling per-conversation context compaction for long chats.

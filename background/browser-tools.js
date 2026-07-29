@@ -1,6 +1,7 @@
 import { deleteAllCurrentPageCookies, deleteCurrentPageCookie, importCurrentPageCookies, listCurrentPageCookies, setCurrentPageCookie } from "./cookie-tools.js";
 import { clearNetwork, getNetwork, startNetwork, stopNetwork } from "./network-debugger.js";
 import { executeWebSearch, isWebSearchTool } from "./tools/search/search-tool.js";
+import { executePageScript } from "./execute-script.js";
 
 export async function getInitialTargetTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -18,6 +19,8 @@ export async function executeTool(name, args, context) {
   if (!tabId) throw new Error("Target tab belum tersedia.");
 
   switch (name) {
+    case "executeScript":
+      return executePageScript(tabId, args.code);
     case "read_page": {
       if (context.settings.autoStartNetwork) {
         try {

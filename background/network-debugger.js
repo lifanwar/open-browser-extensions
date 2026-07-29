@@ -169,7 +169,9 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
           "Network.getResponseBody",
           { requestId: params.requestId }
         );
-        entry.responseBody = body?.body;
+        // Ponytail: truncate at storage time so raw bodies don't stay unbounded in memory.
+        const raw = body?.body;
+        entry.responseBody = raw != null && raw.length > 200_000 ? `${raw.slice(0, 200_000)}\n[TRUNCATED]` : raw;
         entry.responseBodyBase64 = Boolean(body?.base64Encoded);
       } catch {
         entry.responseBodyUnavailable = true;
@@ -190,6 +192,15 @@ chrome.debugger.onDetach.addListener((source) => {
     state.attached = false;
     state.capturing = false;
   }
+});
+
+// Ponytail: prune state when tab closes so states Map doesn't grow unbounded.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  const state = states.get(tabId);
+  if (state?.attached) {
+    try { chrome.debugger.detach({ tabId }); } catch { /* already detached */ }
+  }
+  states.delete(tabId);
 });
 
 function trimState(state) {

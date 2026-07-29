@@ -15,6 +15,9 @@ const fn = (name, description, properties = {}, required = []) => ({
 });
 
 export const TOOL_DEFINITIONS = [
+  fn("executeScript", "Execute JavaScript directly in the target page MAIN world like DevTools console. Use for advanced DOM, runtime, and page state operations.", {
+    code: { type: "string", description: "JavaScript code to execute in the page context." }
+  }, ["code"]),
   fn("read_page", "Read the current target page and return visible text plus interactive elements with stable refs."),
   fn("click", "Click an interactive element from read_page using its ref.", {
     ref: { type: "string", description: "Element ref such as e12." }

@@ -227,6 +227,30 @@ chrome.runtime.onMessage.addListener((message) => {
       liveDraft.content = "";
       updateLiveContent();
     }
+    // Save pre-queue tool activities as a checkpoint before the steering message
+    const steerIdx = history.findLastIndex((m) => m.steering === true);
+    if (liveDraft && liveDraft.activities.length > 0) {
+      finalizeLiveActivities("done");
+      const completed = cloneActivities(liveDraft.activities);
+      if (liveNodes?.row) liveNodes.row.remove();
+      if (steerIdx >= 0) {
+        history.splice(steerIdx, 0, {
+          role: "assistant",
+          content: "",
+          reasoning: liveDraft.reasoning || "",
+          activities: completed,
+          createdAt: Date.now()
+        });
+      }
+      liveDraft = { content: "", reasoning: "", activities: [] };
+      liveNodes = null;
+      renderChat();
+    }
+    // Clean up ALL steering flags so old intercepts don't keep re-ordering
+    for (const msg of history) delete msg.steering;
+    if (!liveDraft || liveDraft.activities.length === 0) {
+      renderChat();
+    }
     const count = Number(payload?.count || 0);
     headerSubtitle.textContent = count > 1
       ? `Applying ${count} queued instructions…`
@@ -1339,14 +1363,18 @@ function appendSearchSources(container, search) {
 }
 
 function renderMarkdown(target, markdown) {
-  const raw = String(markdown || "").replace(/\r\n/g, "\n");
+  const raw = String(markdown || "").replace(/\r\n?/g, "\n");
   const codeBlocks = [];
-  let escaped = escapeHtml(raw).replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, language, code) => {
+  const markdownWithoutCode = raw.replace(/```([^\n`]*)\n([\s\S]*?)```/g, (_, language, code) => {
     const index = codeBlocks.length;
-    const lang = escapeHtml(language.trim());
-    codeBlocks.push(`<pre><code data-language="${lang}">${code.replace(/^\n|\n$/g, "")}</code></pre>`);
+    const renderer = globalThis.SyntaxHighlight?.renderCodeBlock;
+    const normalizedCode = code.replace(/^\n/, "").replace(/\n$/, "");
+    codeBlocks.push(renderer
+      ? renderer(normalizedCode, language)
+      : `<div class="code-block-wrapper"><pre><code>${escapeHtml(normalizedCode)}</code></pre></div>`);
     return `@@CODEBLOCK_${index}@@`;
   });
+  let escaped = escapeHtml(markdownWithoutCode);
 
   escaped = escaped
     .replace(/^###\s+(.+)$/gm, "<h3>$1</h3>")
@@ -1432,7 +1460,7 @@ function renderTableHtml(markdown) {
     return "";
   });
   const rows = lines.slice(2).filter((l) => l.trim().startsWith("|"));
-  let html = '<div class="table-wrapper"><table><thead><tr>';
+  let html = '<div class="table-wrapper"><div class="table-scroll"><table><thead><tr>';
   headers.forEach((h, i) => {
     html += `<th${aligns[i] || ""}>${h}</th>`;
   });
@@ -1447,6 +1475,7 @@ function renderTableHtml(markdown) {
     html += "</tr>";
   });
   html += "</tbody></table></div>";
+  html += `<button class="copy-btn" aria-label="Copy"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button></div>`;
   return html;
 }
 
@@ -1663,6 +1692,90 @@ function suggestionSvg(type) {
 }
 
 function value(id) { return document.getElementById(id).value.trim(); }
+const CHECK_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+
+async function writeClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    document.execCommand("copy");
+  } finally {
+    textarea.remove();
+  }
+}
+
+function showCopiedState(btn) {
+  if (!btn.dataset.originalHtml) {
+    btn.dataset.originalHtml = btn.innerHTML;
+    btn.dataset.originalAriaLabel = btn.getAttribute("aria-label") || "Copy";
+    btn.dataset.originalTitle = btn.getAttribute("title") || "";
+  }
+
+  const hasTextLabel = Boolean(btn.querySelector("span"));
+  btn.innerHTML = `${CHECK_SVG}${hasTextLabel ? "<span>Copied</span>" : ""}`;
+  btn.classList.add("copied");
+  btn.setAttribute("aria-label", "Copied");
+  btn.setAttribute("title", "Copied");
+
+  clearTimeout(Number(btn.dataset.copyResetTimer || 0));
+  const timer = setTimeout(() => {
+    btn.classList.remove("copied");
+    btn.innerHTML = btn.dataset.originalHtml || "";
+    btn.setAttribute("aria-label", btn.dataset.originalAriaLabel || "Copy");
+    if (btn.dataset.originalTitle) btn.setAttribute("title", btn.dataset.originalTitle);
+    else btn.removeAttribute("title");
+    // Ponytail: skip restore if btn was removed from DOM (renderChat replaces children).
+    if (!btn.isConnected) { delete btn.dataset.copyResetTimer; return; }
+    delete btn.dataset.copyResetTimer;
+  }, 1800);
+  btn.dataset.copyResetTimer = String(timer);
+}
+
+async function copyCode(btn) {
+  const wrapper = btn.closest(".code-block-wrapper");
+  const code = wrapper?.querySelector("code")?.textContent || "";
+  try {
+    await writeClipboard(code);
+    showCopiedState(btn);
+  } catch (error) {
+    console.warn("Unable to copy code", error);
+  }
+}
+
+async function copyTable(btn) {
+  const wrapper = btn.closest(".table-wrapper");
+  const table = wrapper?.querySelector("table");
+  const headers = Array.from(table?.querySelectorAll("th") || []).map((th) => th.textContent.trim());
+  const rows = Array.from(table?.querySelectorAll("tbody tr") || []).map((tr) =>
+    Array.from(tr.querySelectorAll("td")).map((td) => td.textContent.trim())
+  );
+  const text = headers.length ? [headers.join(" | "), ...rows.map((row) => row.join(" | "))].join("\n") : "";
+  try {
+    await writeClipboard(text);
+    showCopiedState(btn);
+  } catch (error) {
+    console.warn("Unable to copy table", error);
+  }
+}
+
 function checked(id) { return document.getElementById(id).checked; }
 function setValue(id, valueToSet) { document.getElementById(id).value = valueToSet ?? ""; }
 function setChecked(id, valueToSet) { document.getElementById(id).checked = Boolean(valueToSet); }
+
+// Delegated click handler for clipboard copy buttons (bypass CSP inline-script restriction)
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.copy-btn');
+  if (!btn) return;
+  if (btn.closest('.code-block-wrapper')) copyCode(btn);
+  else if (btn.closest('.table-wrapper')) copyTable(btn);
+});
