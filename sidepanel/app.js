@@ -227,6 +227,30 @@ chrome.runtime.onMessage.addListener((message) => {
       liveDraft.content = "";
       updateLiveContent();
     }
+    // Save pre-queue tool activities as a checkpoint before the steering message
+    const steerIdx = history.findLastIndex((m) => m.steering === true);
+    if (liveDraft && liveDraft.activities.length > 0) {
+      finalizeLiveActivities("done");
+      const completed = cloneActivities(liveDraft.activities);
+      if (liveNodes?.row) liveNodes.row.remove();
+      if (steerIdx >= 0) {
+        history.splice(steerIdx, 0, {
+          role: "assistant",
+          content: "",
+          reasoning: liveDraft.reasoning || "",
+          activities: completed,
+          createdAt: Date.now()
+        });
+      }
+      liveDraft = { content: "", reasoning: "", activities: [] };
+      liveNodes = null;
+      renderChat();
+    }
+    // Clean up ALL steering flags so old intercepts don't keep re-ordering
+    for (const msg of history) delete msg.steering;
+    if (!liveDraft || liveDraft.activities.length === 0) {
+      renderChat();
+    }
     const count = Number(payload?.count || 0);
     headerSubtitle.textContent = count > 1
       ? `Applying ${count} queued instructions…`
@@ -487,19 +511,10 @@ function renderChat() {
 
   for (const item of history) {
     if (!item?.content && !item?.reasoning) continue;
-    // During a live run, render queued steering messages after the live row
-    if (liveDraft && item.steering) continue;
     chat.append(createMessageRow(item));
   }
 
-  if (liveDraft) {
-    ensureLiveAssistantRow();
-    // Render queued user messages below the running tools
-    for (const item of history) {
-      if (!item?.content || !item.steering) continue;
-      chat.append(createMessageRow(item));
-    }
-  }
+  if (liveDraft) ensureLiveAssistantRow();
   scrollChatToBottom();
 }
 
