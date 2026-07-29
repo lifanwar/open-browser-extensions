@@ -11,7 +11,7 @@ export async function executePageScript(tabId, code) {
       { tabId },
       "Runtime.evaluate",
       {
-        expression: `(async()=>{\n${String(code)}\n})()`,
+        expression: `(async()=>{\nreturn ${String(code)}\n})()`,
         awaitPromise: true,
         returnByValue: true,
         userGesture: true

@@ -5,6 +5,7 @@
 - Fixed memory leaks in network debugger: prunes per-tab state on tab close so `states` Map doesn't grow unbounded.
 - Truncated network response bodies at storage time (200KB) instead of serialization time, preventing raw body accumulation in memory.
 - Guarded `showCopiedState` timer against detached DOM nodes — skips restore if the button was removed from the tree (e.g. chat re-render).
+- Fixed `executeScript` always returning `null` because the async IIFE was missing `return` before the evaluated code.
 
 ## 1.5.1
 
