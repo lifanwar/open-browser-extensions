@@ -42,18 +42,18 @@ Open Browser Agent turns Chrome's side panel into an AI workspace that can under
 
 ## ✨ Core Features
 
-- **Bring your own model** — Connect any OpenAI-compatible `POST /chat/completions` endpoint and choose the model, temperature, system prompt, streaming mode, and tool-step limit.
-- **Real browser operation** — Read pages, click elements, fill forms, choose options, press keys, scroll, navigate, switch tabs, wait for updates, and execute JavaScript in the page's main world.
-- **Transparent agent execution** — Follow live thinking fields supplied by the provider, ordered tool calls, arguments, concise results, and Running, Done, Failed, or Stopped states.
-- **Steer active runs** — Send a new instruction while the agent is working. Pending actions are safely skipped when needed, then the agent replans around the latest request.
-- **Developer-grade Network inspection** — Capture requests through Chrome DevTools Protocol, filter by URL, method, or resource type, and inspect headers, payloads, status data, and optional textual response bodies.
-- **Advanced cookie debugging** — List and export current-page cookies, including HttpOnly values. Optional write tools can create, import, update, delete, or clear cookies after explicit enablement.
-- **Web research without unnecessary navigation** — Add `SEARCH` and `EXTRACT` through direct endpoints or a 9Router-compatible connection, with separate search/fetch models, keys, formats, and result limits.
-- **Long-chat context control** — Keep the complete conversation locally while rolling compaction sends a compact memory plus recent turns to the model.
-- **Local conversation workspace** — Create, switch, auto-title, preserve, and delete multiple conversations from the side panel.
-- **Polished response rendering** — Stream answers incrementally with Markdown, syntax-highlighted code blocks, language labels, copy buttons, and scrollable tables.
-- **System, light, and dark themes** — Match the browser automatically or choose a fixed appearance.
-- **Clean, auditable source** — Dependency-free HTML, CSS, and JavaScript with no bundler, minification, or obfuscated production output.
+- **Bring your own model** — Connect any OpenAI-compatible API and configure the model, temperature, prompt, streaming, and tool limits.
+- **Browser automation** — Read pages, click, fill forms, navigate, switch tabs, scroll, press keys, and run JavaScript.
+- **Live agent activity** — View provider reasoning, tool calls, results, and execution status in real time.
+- **Mid-run steering** — Add new instructions while the agent is still working.
+- **Network inspection** — Capture and filter requests, headers, payloads, status data, and response bodies.
+- **Cookie tools** — View, export, create, import, update, or delete current-page cookies.
+- **Web search and extraction** — Use SEARCH and EXTRACT through direct or 9Router-compatible endpoints.
+- **Context compaction** — Keep full chats locally while sending compact context to the model.
+- **Multiple conversations** — Create, switch, auto-title, save, and delete chats.
+- **Rich response rendering** — Stream Markdown, highlighted code, copy buttons, and scrollable tables.
+- **Light and dark themes** — Use system, light, or dark appearance.
+- **Clean source code** — Dependency-free HTML, CSS, and JavaScript with no bundling or obfuscation.
 
 ## 🧰 Built-in Tools
 
@@ -79,7 +79,7 @@ Search and cookie-write tools are not advertised to the model until their corres
 5. Reload any browser tabs that were already open.
 6. Open the side panel, go to **Settings**, and enter your API configuration.
 
-Use the extension button or press `Ctrl+Shift+M` on Windows/Linux and `Command+Shift+M` on macOS.
+Use the extension button or press `Ctrl+M` on Windows/Linux and `Command+M` on macOS.
 
 ### Minimum chat configuration
 
