@@ -1,5 +1,6 @@
 import { runAgent } from "./agent.js";
-import { loadSettings, saveSettings } from "./config.js";
+import { exportSettings, importSettings, loadRunSettings, loadSettings, saveSettings } from "./config.js";
+import { clearCredentialFields, credentialValues, redactSensitiveText } from "./credential-store.js";
 
 const activeRuns = new Map();
 
@@ -24,6 +25,10 @@ async function handleMessage(message) {
       return loadSettings();
     case "SAVE_SETTINGS":
       return saveSettings(message.settings || {});
+    case "EXPORT_SETTINGS":
+      return exportSettings();
+    case "IMPORT_SETTINGS":
+      return importSettings(message.snapshot || {});
     case "RUN_AGENT":
       return startRun(message);
     case "QUEUE_AGENT_MESSAGE":
@@ -39,10 +44,6 @@ async function startRun(message) {
   const runId = String(message.runId || crypto.randomUUID());
   if (activeRuns.has(runId)) throw new Error("Run ID sedang digunakan.");
 
-  const settings = { ...(await loadSettings()), ...(message.settings || {}) };
-  if (!settings.baseUrl) throw new Error("Base URL belum diatur.");
-  if (!settings.model) throw new Error("Model belum diatur.");
-
   const run = createRunState();
   activeRuns.set(runId, run);
   let emitChain = Promise.resolve();
@@ -53,12 +54,17 @@ async function startRun(message) {
   };
 
   try {
+    run.settings = await loadRunSettings();
+    if (run.controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    if (!run.settings.baseUrl) throw new Error("Base URL belum diatur.");
+    if (!run.settings.model) throw new Error("Model belum diatur.");
+
     emit("status", "Agent dimulai.");
     const result = await runAgent({
       runId,
       history: message.history || [],
       contextState: message.contextState || null,
-      settings,
+      settings: run.settings,
       signal: run.controller.signal,
       emit,
       takeQueuedMessages: (options) => takeQueuedMessages(run, options)
@@ -67,17 +73,17 @@ async function startRun(message) {
     await emitChain;
     return result;
   } catch (error) {
+    const messageText = redactSensitiveText(error?.message || String(error), credentialValues(run.settings));
     if (run.controller.signal.aborted) {
       emit("cancelled", "Agent dihentikan.");
       await emitChain;
       throw new Error("Agent dihentikan.");
     }
-    emit("error", error?.message || String(error));
+    emit("error", messageText);
     await emitChain;
-    throw error;
+    throw new Error(messageText);
   } finally {
-    run.acceptingMessages = false;
-    run.queue.length = 0;
+    disposeRunState(run);
     if (activeRuns.get(runId) === run) activeRuns.delete(runId);
   }
 }
@@ -102,7 +108,8 @@ export function createRunState() {
   return {
     controller: new AbortController(),
     queue: [],
-    acceptingMessages: true
+    acceptingMessages: true,
+    settings: null
   };
 }
 
@@ -129,5 +136,18 @@ export function cancelRunState(run) {
   run.acceptingMessages = false;
   run.queue.length = 0;
   run.controller.abort();
+  clearRunCredentials(run);
   return true;
+}
+
+export function disposeRunState(run) {
+  if (!run) return;
+  run.acceptingMessages = false;
+  run.queue.length = 0;
+  clearRunCredentials(run);
+}
+
+function clearRunCredentials(run) {
+  clearCredentialFields(run.settings);
+  run.settings = null;
 }

@@ -4,6 +4,6 @@
   "version": "1.5.0",
   "type": "module",
   "scripts": {
-    "check": "node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs"
+    "check": "node tests/credential-storage.mjs && node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs"
   }
 }

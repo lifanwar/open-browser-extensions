@@ -11,6 +11,7 @@ globalThis.chrome = {
     onEvent: { addListener() {} },
     onDetach: { addListener() {} }
   },
+  tabs: { onRemoved: { addListener() {} } },
   sidePanel: { setPanelBehavior: async () => {} },
   storage: { local: { get: async () => ({}), set: async () => {} } }
 };

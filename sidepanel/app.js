@@ -336,8 +336,7 @@ async function submitPrompt(rawContent) {
       type: "RUN_AGENT",
       runId: currentRunId,
       history,
-      contextState: getActiveConversation()?.contextState || null,
-      settings
+      contextState: getActiveConversation()?.contextState || null
     });
     const contextUpdated = applyConversationContextState(result?.contextState);
     if (result?.content && result.content !== doneEventContent) {

@@ -1,3 +1,5 @@
+import { credentialValues, redactSensitiveText, redactSensitiveValue } from "./credential-store.js";
+
 export function buildChatCompletionsUrl(baseUrl) {
   const trimmed = String(baseUrl || "").trim().replace(/\/+$/, "");
   if (!trimmed) throw new Error("Base URL belum diisi.");
@@ -27,25 +29,30 @@ export async function createChatCompletion({ settings, messages, tools, signal, 
   const temperature = Number(settings.temperature);
   if (Number.isFinite(temperature)) body.temperature = temperature;
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal
+    });
+  } finally {
+    delete headers.Authorization;
+  }
 
   if (!response.ok) {
     const raw = await response.text();
     let data = null;
     try { data = parseCompatibleJson(raw, response.headers.get("content-type") || ""); } catch { /* keep raw */ }
     const detail = data?.error?.message || data?.message || createResponsePreview(raw) || response.statusText;
-    throw new Error(`API error ${response.status}: ${detail}`);
+    throw new Error(`API error ${response.status}: ${redactSensitiveText(detail, credentialValues(settings))}`);
   }
 
   const contentType = response.headers.get("content-type") || "";
   if (wantsStream && response.body) {
     const streamed = await consumeStreamingCompletion(response.body, contentType, onDelta, signal);
-    if (streamed) return normalizeAssistantMessage(streamed);
+    if (streamed) return normalizeAssistantMessage(redactSensitiveValue(streamed, credentialValues(settings)));
   }
 
   const raw = await response.text();
@@ -56,11 +63,11 @@ export async function createChatCompletion({ settings, messages, tools, signal, 
     const preview = createResponsePreview(raw);
     throw new Error(
       `API mengembalikan respons yang tidak dapat diproses (${response.status}). ` +
-      `${error.message}\nPreview: ${preview}`
+      `${redactSensitiveText(error.message, credentialValues(settings))}\nPreview: ${redactSensitiveText(preview, credentialValues(settings))}`
     );
   }
 
-  const message = extractAssistantMessage(data);
+  const message = redactSensitiveValue(extractAssistantMessage(data), credentialValues(settings));
   emitWholeMessage(message, onDelta);
   return normalizeAssistantMessage(message);
 }

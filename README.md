@@ -58,6 +58,6 @@ The compact memory is stored per conversation and reused on later runs. Compacti
 
 ## Privacy
 
-Settings, API credentials, conversations, and appearance are stored in the local Chrome profile. Prompts, selected page content, tool results, search queries, fetched URLs, and captured Network data may be sent to the endpoints configured by the user.
+Settings, conversations, and appearance are stored in the local Chrome profile. API credentials are encrypted with AES-256-GCM; only ciphertext and IV metadata are stored in `chrome.storage.local`, while the non-extractable encryption key is stored in extension IndexedDB. Prompts, selected page content, tool results, search queries, fetched URLs, and captured Network data may be sent to the endpoints configured by the user.
 :::
 
