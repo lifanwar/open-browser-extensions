@@ -27,10 +27,10 @@
 
 <table align="center">
   <tr>
-    <td align="center" valign="bottom"><img src="docs/images/chat-dark.png" width="140" height="270" alt="Agent chat in dark theme"><br><sub><b>Dark Theme</b></sub></td>
-    <td align="center" valign="bottom"><img src="docs/images/chat-light.png" width="140" height="270" alt="Agent chat in light theme"><br><sub><b>Light Theme</b></sub></td>
-    <td align="center" valign="bottom"><img src="docs/images/conversations.png" width="140" height="270" alt="Local conversation manager"><br><sub><b>Conversations</b></sub></td>
-    <td align="center" valign="bottom"><img src="docs/images/browser-tools.png" width="140" height="270" alt="Browser and security tool switches"><br><sub><b>Settings</b></sub></td>
+    <td align="center"><img src="docs/images/chat-dark.png" width="140" alt="Agent chat in dark theme"></td>
+    <td align="center"><img src="docs/images/chat-light.png" width="140" alt="Agent chat in light theme"></td>
+    <td align="center"><img src="docs/images/conversations.png" width="140" alt="Local conversation manager"></td>
+    <td align="center"><img src="docs/images/browser-tools.png" width="140" alt="Browser and security tool switches"></td>
   </tr>
 </table>
 
