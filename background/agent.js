@@ -138,7 +138,7 @@ export async function runAgent({
     const assistantToolMessage = {
       role: "assistant",
       content: redactSensitiveText(normalizeContent(assistant.content), settings) || null,
-      tool_calls: redactSensitiveValue(toolCalls, settings)
+      tool_calls: toolCalls
     };
     if (assistant.reasoning_content != null) {
       assistantToolMessage.reasoning_content = redactSensitiveText(assistant.reasoning_content, settings);
@@ -502,6 +502,7 @@ function normalizeContent(content) {
 
 function safeJson(value) {
   const json = JSON.stringify(value);
+  if (json === undefined) return "null";
   return json.length > 120_000 ? `${json.slice(0, 120_000)}\n[TOOL RESULT TRUNCATED]` : json;
 }
 

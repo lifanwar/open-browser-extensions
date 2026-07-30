@@ -23,8 +23,11 @@ export async function prepareConversationContext({
   emit = () => {},
   createCompletion
 }) {
-  const cleanHistory = sanitizeConversationHistory(redactSensitiveValue(history, settings));
-  const currentState = normalizeContextState(redactSensitiveValue(contextState, settings));
+  const cleanHistory = redactSensitiveValue(sanitizeConversationHistory(history), settings);
+  const normalizedState = normalizeContextState(contextState);
+  const currentState = normalizedState
+    ? { ...normalizedState, summary: redactSensitiveText(normalizedState.summary, settings) }
+    : null;
   const pendingMessages = messagesAfterBoundary(cleanHistory, currentState?.compactedThroughId);
   const currentMessages = buildApiMessages(currentState?.summary, pendingMessages);
 

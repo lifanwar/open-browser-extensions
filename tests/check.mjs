@@ -188,7 +188,7 @@ assert.ok(manifest.permissions.includes("debugger"));
 assert.ok(manifest.permissions.includes("sidePanel"));
 assert.equal(manifest.side_panel.default_path, "sidepanel/index.html");
 
-const networkSource = fs.readFileSync(path.join(root, "background/network-debugger.js"), "utf8");
+const networkSource = fs.readFileSync(path.join(root, "background/tools/network-debugger.js"), "utf8");
 assert.match(networkSource, /"1\.3"/);
 assert.doesNotMatch(networkSource, /attach\(\{ tabId \}, "0\.1"\)/);
 
@@ -261,8 +261,11 @@ const requiredFiles = [
   "background/service-worker.js",
   "background/agent.js",
   "background/context-compaction.js",
-  "background/browser-tools.js",
-  "background/network-debugger.js",
+  "background/tools/browser-tools.js",
+  "background/tools/cookie-tools.js",
+  "background/tools/execute-script.js",
+  "background/tools/network-debugger.js",
+  "background/tools/search-tool.js",
   "content/browser.js",
   "sidepanel/index.html",
   "sidepanel/syntax-highlighter.js",
@@ -271,7 +274,7 @@ const requiredFiles = [
 for (const file of requiredFiles) assert.ok(fs.existsSync(path.join(root, file)), `Missing ${file}`);
 
 const sourceFiles = [
-  ...fs.readdirSync(path.join(root, "background")).filter((name) => name.endsWith(".js")).map((name) => path.join(root, "background", name)),
+  ...listJavaScriptFiles(path.join(root, "background")),
   path.join(root, "content/browser.js"),
   path.join(root, "sidepanel/app.js")
 ];
@@ -279,6 +282,15 @@ for (const sourceFile of sourceFiles) {
   const source = fs.readFileSync(sourceFile, "utf8");
   assert.ok(source.includes("\n"), `${sourceFile} appears minified`);
   assert.ok(!/eval\s*\(/.test(source), `${sourceFile} must not use eval`);
+}
+
+
+function listJavaScriptFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) return listJavaScriptFiles(target);
+    return entry.isFile() && entry.name.endsWith(".js") ? [target] : [];
+  });
 }
 
 console.log("Static, CDP protocol, conversations, cookie tool gating, settings layout, parser and streaming checks passed.");

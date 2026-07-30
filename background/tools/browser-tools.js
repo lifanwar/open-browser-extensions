@@ -71,7 +71,9 @@ export async function executeTool(name, args, context) {
 
 async function sendToPage(tabId, message) {
   try {
-    return await chrome.tabs.sendMessage(tabId, message);
+    const response = await chrome.tabs.sendMessage(tabId, message);
+    if (response === undefined) throw new Error(`Content script tidak mengirim respons untuk ${message.type}.`);
+    return response;
   } catch (error) {
     if (String(error?.message || error).includes("Receiving end does not exist")) {
       throw new Error("Content script belum tersedia pada halaman ini. Reload halaman target lalu coba lagi.");

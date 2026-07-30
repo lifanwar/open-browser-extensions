@@ -199,10 +199,14 @@ export function redactSensitiveValue(value, secrets, seen = new WeakSet()) {
   if (!value || typeof value !== "object") return value;
   if (seen.has(value)) return "[Circular]";
   seen.add(value);
-  if (Array.isArray(value)) return value.map((item) => redactSensitiveValue(item, normalizedSecrets, seen));
-  return Object.fromEntries(
-    Object.entries(value).map(([key, item]) => [key, redactSensitiveValue(item, normalizedSecrets, seen)])
-  );
+  try {
+    if (Array.isArray(value)) return value.map((item) => redactSensitiveValue(item, normalizedSecrets, seen));
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, redactSensitiveValue(item, normalizedSecrets, seen)])
+    );
+  } finally {
+    seen.delete(value);
+  }
 }
 
 async function openIndexedDbKeyStore(indexedDBImpl) {

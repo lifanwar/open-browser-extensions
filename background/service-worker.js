@@ -28,7 +28,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-async function handleMessage(message) {
+async function handleMessage(message, sender) {
   switch (message?.type) {
     case "GET_SETTINGS":
       return loadSettings();
@@ -43,6 +43,7 @@ async function handleMessage(message) {
     case "QUEUE_AGENT_MESSAGE":
       return queueRunMessage(message.runId, message.content);
     case "REVEAL_CREDENTIAL":
+      assertCredentialRevealSender(sender);
       return revealCredential(message.field);
     case "CANCEL_AGENT":
       return cancelRun(message.runId);
@@ -65,8 +66,12 @@ async function startRun(message) {
   };
 
   try {
-    run.settings = await loadRunSettings();
-    if (run.controller.signal.aborted) throw new DOMException("Aborted", "AbortError");
+    const loadedSettings = await loadRunSettings();
+    if (run.controller.signal.aborted) {
+      clearCredentialFields(loadedSettings);
+      throw new DOMException("Aborted", "AbortError");
+    }
+    run.settings = { ...loadedSettings, ...(message.settings || {}) };
     if (!run.settings.baseUrl) throw new Error("Base URL belum diatur.");
     if (!run.settings.model) throw new Error("Model belum diatur.");
 
@@ -113,6 +118,13 @@ function cancelRun(runId) {
   if (!run) return { cancelled: false };
   cancelRunState(run);
   return { cancelled: true };
+}
+
+function assertCredentialRevealSender(sender) {
+  const sidepanelUrl = chrome.runtime.getURL("sidepanel/");
+  if (sender?.id !== chrome.runtime.id || sender?.tab || !String(sender?.url || "").startsWith(sidepanelUrl)) {
+    throw new Error("Credential reveal is only allowed from the extension side panel.");
+  }
 }
 
 async function revealCredential(field) {

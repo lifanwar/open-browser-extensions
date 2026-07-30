@@ -1190,15 +1190,18 @@ function friendlyToolName(name, args = {}) {
 async function togglePasswordVisibility(inputId, button, label) {
   const input = document.querySelector(`#${inputId}`);
   if (!input || !button) return;
-  if (input.type === "password" && input.value === "••••••••") {
-    try {
-      input.value = await sendMessage({ type: "REVEAL_CREDENTIAL", field: inputId });
-    } catch { /* decrypt gagal, biarkan placeholder */ }
+  if (input.type === "password") {
+    if (input.value === "••••••••") {
+      try {
+        input.value = await sendMessage({ type: "REVEAL_CREDENTIAL", field: inputId });
+      } catch {
+        return;
+      }
+    }
     input.type = "text";
     button.setAttribute("aria-label", `Hide ${label}`);
   } else {
     input.type = "password";
-    input.value = "••••••••";
     button.setAttribute("aria-label", `Show ${label}`);
   }
 }

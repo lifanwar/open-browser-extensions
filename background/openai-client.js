@@ -1,4 +1,4 @@
-import { credentialValues, redactSensitiveText, redactSensitiveValue } from "./credential-store.js";
+import { credentialValues, redactSensitiveText } from "./credential-store.js";
 
 export function buildChatCompletionsUrl(baseUrl) {
   const trimmed = String(baseUrl || "").trim().replace(/\/+$/, "");
@@ -52,7 +52,7 @@ export async function createChatCompletion({ settings, messages, tools, signal, 
   const contentType = response.headers.get("content-type") || "";
   if (wantsStream && response.body) {
     const streamed = await consumeStreamingCompletion(response.body, contentType, onDelta, signal);
-    if (streamed) return normalizeAssistantMessage(redactSensitiveValue(streamed, credentialValues(settings)));
+    if (streamed) return normalizeAssistantMessage(streamed);
   }
 
   const raw = await response.text();
@@ -67,9 +67,9 @@ export async function createChatCompletion({ settings, messages, tools, signal, 
     );
   }
 
-  const message = redactSensitiveValue(extractAssistantMessage(data), credentialValues(settings));
+  const message = normalizeAssistantMessage(extractAssistantMessage(data));
   emitWholeMessage(message, onDelta);
-  return normalizeAssistantMessage(message);
+  return message;
 }
 
 async function consumeStreamingCompletion(body, contentType, onDelta, signal) {
