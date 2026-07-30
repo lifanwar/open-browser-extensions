@@ -432,6 +432,53 @@ function assertNoPlaintext(snapshot, secrets) {
   const r4 = createSensitiveStreamRedactor(["read"]);
   assert.equal(r4.push("use read"), "use ");
   assert.equal(r4.flush(), "[REDACTED API KEY]");
+
+  // Trailing context: 'already' + 'read' must remain 'alreadyread'.
+  const r5 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r5.push("already"), "already");
+  assert.equal(r5.push("read"), "");          // held at chunk end
+  assert.equal(r5.flush(), "read");            // resolved on flush — embedded in word
+
+  // Trailing context: 'my_' + 'read' must remain 'my_read' (_ is word char).
+  const r6 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r6.push("my_"), "my_");
+  assert.equal(r6.push("read"), "");          // held
+  assert.equal(r6.flush(), "read");           // resolved — embedded
+
+  // Trailing context via hold: 'alreadyr' + 'ead' must remain 'alreadyread'.
+  const r7 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r7.push("alreadyr"), "already");
+  assert.equal(r7.push("ead"), "");           // held ('r' was held from prev, 'ead' completes it)
+  assert.equal(r7.flush(), "read");           // resolved — embedded
+
+  // Embedded in single chunk: 'alreadyread' must NOT be redacted.
+  const r8 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r8.push("alreadyread"), "already");
+  assert.equal(r8.flush(), "read");
+
+  // Mixed: 'xread read' — first 'read' embedded in 'xread', second standalone.
+  const r9 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r9.push("xread read"), "xread ");
+  assert.equal(r9.flush(), "[REDACTED API KEY]");
+
+  // Cross-chunk adjacent: 'read' + 'read' form 'readread' (one word) -> NOT redacted.
+  const r10 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r10.push("read"), "");
+  assert.equal(r10.push("read"), "read");    // first half emitted, 'read' held as potential prefix
+  assert.equal(r10.flush(), "read");         // held text resolved — embedded
+
+  // Standalone 'read read' — both tokens redacted.
+  const r11 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r11.push("read read"), "[REDACTED API KEY] ");
+  assert.equal(r11.flush(), "[REDACTED API KEY]");
+
+  // Multiple secrets with overlapping lengths preserve existing behavior.
+  const r12 = createSensitiveStreamRedactor(["read", "reader"]);
+  assert.equal(r12.push("reader read"), "[REDACTED API KEY] ");
+  assert.equal(r12.flush(), "[REDACTED API KEY]");
+  const r13 = createSensitiveStreamRedactor(["read", "reader"]);
+  assert.equal(r13.push("readers"), "readers");
+  assert.equal(r13.flush(), "");
 }
 
 console.log("Encrypted credential storage, migration, run reuse, cleanup, import/export, missing-key, corruption checks, and word-boundary redaction passed.");

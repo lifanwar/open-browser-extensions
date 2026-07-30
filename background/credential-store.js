@@ -137,15 +137,18 @@ export function redactSensitiveText(value, secrets) {
 export function createSensitiveStreamRedactor(secrets) {
   const values = normalizeSecrets(secrets);
   let pending = "";
+  let prevTrailing = "";
 
   const consume = (final) => {
     if (!values.length) {
       const output = pending;
       pending = "";
+      if (output) prevTrailing = output[output.length - 1];
       return output;
     }
 
     let output = "";
+    let trail = prevTrailing;
     while (pending) {
       let matchIndex = -1;
       let matchSecret = "";
@@ -157,21 +160,32 @@ export function createSensitiveStreamRedactor(secrets) {
         }
       }
       if (matchIndex < 0) break;
-      const hasBefore = matchIndex > 0;
+      const hasBefore = matchIndex > 0 || trail !== "";
       const hasAfter = matchIndex + matchSecret.length < pending.length;
       if (!final && !hasAfter) break;
-      if ((hasBefore && isWordChar(pending[matchIndex - 1])) || (hasAfter && isWordChar(pending[matchIndex + matchSecret.length]))) {
+      const beforeChar = matchIndex > 0 ? pending[matchIndex - 1] : trail;
+      if ((hasBefore && isWordChar(beforeChar)) || (hasAfter && isWordChar(pending[matchIndex + matchSecret.length]))) {
         output += pending[0];
+        trail = pending[0];
         pending = pending.slice(1);
         continue;
       }
-      output += pending.slice(0, matchIndex) + REDACTED;
+      if (matchIndex > 0) {
+        output += pending.slice(0, matchIndex);
+        trail = pending[matchIndex - 1];
+      }
+      output += REDACTED;
+      trail = pending[matchIndex + matchSecret.length - 1];
       pending = pending.slice(matchIndex + matchSecret.length);
     }
 
     if (final) {
-      output += pending;
+      if (pending) {
+        trail = pending[pending.length - 1];
+        output += pending;
+      }
       pending = "";
+      prevTrailing = trail;
       return output;
     }
 
@@ -184,8 +198,13 @@ export function createSensitiveStreamRedactor(secrets) {
         break;
       }
     }
-    output += pending.slice(0, pending.length - hold);
+    const safe = pending.slice(0, pending.length - hold);
+    if (safe) {
+      trail = safe[safe.length - 1];
+      output += safe;
+    }
     pending = hold ? pending.slice(-hold) : "";
+    prevTrailing = trail;
     return output;
   };
 
