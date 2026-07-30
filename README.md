@@ -27,12 +27,12 @@
 
 <table align="center">
   <tr>
-    <td align="center"><img src="docs/images/chat-dark.png" width="140" alt="Agent chat in dark theme"><br><sub><b>Dark Theme</b></sub></td>
-    <td align="center"><img src="docs/images/chat-light.png" width="140" alt="Agent chat in light theme"><br><sub><b>Light Theme</b></sub></td>
-    <td align="center"><img src="docs/images/conversations.png" width="140" alt="Local conversation manager"><br><sub><b>Conversations</b></sub></td>
-    <td align="center"><img src="docs/images/api-connection.png" width="140" alt="Chat API connection settings"><br><sub><b>Bring Your Own Model</b></sub></td>
-    <td align="center"><img src="docs/images/search-connection.png" width="140" alt="Search and fetch connection settings"><br><sub><b>Search Connections</b></sub></td>
-    <td align="center"><img src="docs/images/browser-tools.png" width="140" alt="Browser and security tool switches"><br><sub><b>Tool Controls</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/chat-dark.png" width="140" height="270" alt="Agent chat in dark theme"><br><sub><b>Dark Theme</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/chat-light.png" width="140" height="270" alt="Agent chat in light theme"><br><sub><b>Light Theme</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/conversations.png" width="140" height="270" alt="Local conversation manager"><br><sub><b>Conversations</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/api-connection.png" width="140" height="270" alt="Chat API connection settings"><br><sub><b>Bring Your Own Model</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/search-connection.png" width="140" height="270" alt="Search and fetch connection settings"><br><sub><b>Search Connections</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/browser-tools.png" width="140" height="270" alt="Browser and security tool switches"><br><sub><b>Tool Controls</b></sub></td>
   </tr>
 </table>
 
