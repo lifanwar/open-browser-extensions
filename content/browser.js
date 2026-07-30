@@ -2,12 +2,17 @@
   const refToElement = new Map();
   let refCounter = 0;
 
-  chrome.runtime.onMessage.addListener((message) => {
-    try {
-      return handle(message);
-    } catch (error) {
-      return { ok: false, error: error?.message || String(error) };
-    }
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    Promise.resolve(handle(message))
+      .then(sendResponse)
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          error: error?.message || String(error)
+        });
+      });
+
+    return true;
   });
 
   function handle(message) {
