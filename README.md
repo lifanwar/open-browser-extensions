@@ -30,9 +30,7 @@
     <td align="center" valign="bottom"><img src="docs/images/chat-dark.png" width="140" height="270" alt="Agent chat in dark theme"><br><sub><b>Dark Theme</b></sub></td>
     <td align="center" valign="bottom"><img src="docs/images/chat-light.png" width="140" height="270" alt="Agent chat in light theme"><br><sub><b>Light Theme</b></sub></td>
     <td align="center" valign="bottom"><img src="docs/images/conversations.png" width="140" height="270" alt="Local conversation manager"><br><sub><b>Conversations</b></sub></td>
-    <td align="center" valign="bottom"><img src="docs/images/api-connection.png" width="140" height="270" alt="Chat API connection settings"><br><sub><b>Bring Your Own Model</b></sub></td>
-    <td align="center" valign="bottom"><img src="docs/images/search-connection.png" width="140" height="270" alt="Search and fetch connection settings"><br><sub><b>Search Connections</b></sub></td>
-    <td align="center" valign="bottom"><img src="docs/images/browser-tools.png" width="140" height="270" alt="Browser and security tool switches"><br><sub><b>Tool Controls</b></sub></td>
+    <td align="center" valign="bottom"><img src="docs/images/browser-tools.png" width="140" height="270" alt="Browser and security tool switches"><br><sub><b>Settings</b></sub></td>
   </tr>
 </table>
 
@@ -81,7 +79,7 @@ Search and cookie-write tools are not advertised to the model until their corres
 5. Reload any browser tabs that were already open.
 6. Open the side panel, go to **Settings**, and enter your API configuration.
 
-Use the extension button or press `Ctrl+M` on Windows/Linux and `Command+M` on macOS.
+Use the extension button or press `Ctrl+Shift+M` on Windows/Linux and `Command+Shift+M` on macOS.
 
 ### Minimum chat configuration
 
