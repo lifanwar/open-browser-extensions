@@ -9,7 +9,8 @@ import {
   createSensitiveStreamRedactor,
   decryptCredential,
   encryptCredential,
-  getCredentialKey
+  getCredentialKey,
+  redactSensitiveText
 } from "../background/credential-store.js";
 import {
   exportSettings,
@@ -378,4 +379,59 @@ function assertNoPlaintext(snapshot, secrets) {
   assert.equal((await loadRunSettings(options(storage, keyStore))).apiKey, "new-secret");
 }
 
-console.log("Encrypted credential storage, migration, run reuse, cleanup, import/export, missing-key and corruption checks passed.");
+// Short credential word-boundary redaction tests.
+{
+  // Standalone credential must be redacted.
+  assert.equal(redactSensitiveText("Bearer read", ["read"]), "Bearer [REDACTED API KEY]");
+  assert.equal(redactSensitiveText("Token: read", ["read"]), "Token: [REDACTED API KEY]");
+  assert.equal(redactSensitiveText("read", ["read"]), "[REDACTED API KEY]");
+
+  // Credential inside punctuation must be redacted.
+  assert.equal(redactSensitiveText('"read"', ["read"]), '"[REDACTED API KEY]"');
+  assert.equal(redactSensitiveText("read,", ["read"]), "[REDACTED API KEY],");
+  assert.equal(redactSensitiveText("read.", ["read"]), "[REDACTED API KEY].");
+  assert.equal(redactSensitiveText("(read)", ["read"]), "([REDACTED API KEY])");
+
+  // Credential as part of longer word must NOT be redacted.
+  assert.equal(redactSensitiveText("reading", ["read"]), "reading");
+  assert.equal(redactSensitiveText("reader", ["read"]), "reader");
+  assert.equal(redactSensitiveText("alreadyread", ["read"]), "alreadyread");
+  assert.equal(redactSensitiveText("readable", ["read"]), "readable");
+  assert.equal(redactSensitiveText("my_read_value", ["read"]), "my_read_value");
+
+  // Credential at start and end of string remains redacted.
+  assert.equal(redactSensitiveText("read next", ["read"]), "[REDACTED API KEY] next");
+  assert.equal(redactSensitiveText("next read", ["read"]), "next [REDACTED API KEY]");
+
+  // Credential with special characters still works.
+  assert.equal(redactSensitiveText("use sk-proj-test here", ["sk-proj-test"]), "use [REDACTED API KEY] here");
+  assert.equal(redactSensitiveText("sk-proj-testing", ["sk-proj-test"]), "sk-proj-testing");
+}
+
+// Streaming redactor word-boundary tests.
+{
+  // 'reading' split across chunks must not be redacted.
+  const r1 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r1.push("Completed after rea"), "Completed after ");
+  assert.equal(r1.push("ding. Token: re"), "reading. Token: ");
+  assert.equal(r1.push("ad"), "");
+  assert.equal(r1.flush(), "[REDACTED API KEY]");
+
+  // Standalone 'read' split across chunks must be redacted.
+  const r2 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r2.push("Token: "), "Token: ");
+  assert.equal(r2.push("read"), "");
+  assert.equal(r2.flush(), "[REDACTED API KEY]");
+
+  // 'reading' as a single chunk must not be redacted.
+  const r3 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r3.push("reading"), "reading");
+  assert.equal(r3.flush(), "");
+
+  // Flush redacts credential at end of string.
+  const r4 = createSensitiveStreamRedactor(["read"]);
+  assert.equal(r4.push("use read"), "use ");
+  assert.equal(r4.flush(), "[REDACTED API KEY]");
+}
+
+console.log("Encrypted credential storage, migration, run reuse, cleanup, import/export, missing-key, corruption checks, and word-boundary redaction passed.");

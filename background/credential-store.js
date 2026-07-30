@@ -130,7 +130,7 @@ export function credentialValues(settings) {
 
 export function redactSensitiveText(value, secrets) {
   let text = String(value ?? "");
-  for (const secret of normalizeSecrets(secrets)) text = text.split(secret).join(REDACTED);
+  for (const secret of normalizeSecrets(secrets)) text = replaceWithBoundary(text, secret, REDACTED);
   return text;
 }
 
@@ -157,6 +157,14 @@ export function createSensitiveStreamRedactor(secrets) {
         }
       }
       if (matchIndex < 0) break;
+      const hasBefore = matchIndex > 0;
+      const hasAfter = matchIndex + matchSecret.length < pending.length;
+      if (!final && !hasAfter) break;
+      if ((hasBefore && isWordChar(pending[matchIndex - 1])) || (hasAfter && isWordChar(pending[matchIndex + matchSecret.length]))) {
+        output += pending[0];
+        pending = pending.slice(1);
+        continue;
+      }
       output += pending.slice(0, matchIndex) + REDACTED;
       pending = pending.slice(matchIndex + matchSecret.length);
     }
@@ -168,7 +176,7 @@ export function createSensitiveStreamRedactor(secrets) {
     }
 
     let hold = 0;
-    const maxHold = Math.min(pending.length, Math.max(...values.map((value) => value.length)) - 1);
+    const maxHold = Math.min(pending.length, Math.max(...values.map((value) => value.length)));
     for (let length = maxHold; length > 0; length -= 1) {
       const suffix = pending.slice(-length);
       if (values.some((secret) => secret.startsWith(suffix))) {
@@ -296,4 +304,31 @@ function normalizeSecrets(value) {
   const items = Array.isArray(value) ? value : credentialValues(value);
   return [...new Set(items.map((item) => String(item || "")).filter(Boolean))]
     .sort((a, b) => b.length - a.length);
+}
+
+function isWordChar(c) {
+  return (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || (c >= "0" && c <= "9") || c === "_";
+}
+
+function replaceWithBoundary(text, secret, replacement) {
+  const parts = [];
+  let i = 0;
+  while (i < text.length) {
+    const idx = text.indexOf(secret, i);
+    if (idx === -1) {
+      parts.push(text.slice(i));
+      break;
+    }
+    const hasBefore = idx > 0;
+    const hasAfter = idx + secret.length < text.length;
+    if ((hasBefore && isWordChar(text[idx - 1])) || (hasAfter && isWordChar(text[idx + secret.length]))) {
+      parts.push(text.slice(i, idx + 1));
+      i = idx + 1;
+    } else {
+      parts.push(text.slice(i, idx));
+      parts.push(replacement);
+      i = idx + secret.length;
+    }
+  }
+  return parts.join("");
 }
