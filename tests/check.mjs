@@ -182,7 +182,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
-assert.equal(manifest.version, "1.5.1");
+assert.equal(manifest.version, "1.5.2");
 assert.equal(manifest.background.type, "module");
 assert.ok(manifest.permissions.includes("debugger"));
 assert.ok(manifest.permissions.includes("sidePanel"));

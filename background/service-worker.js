@@ -1,6 +1,15 @@
 import { runAgent } from "./agent.js";
 import { exportSettings, importSettings, loadRunSettings, loadSettings, saveSettings } from "./config.js";
-import { clearCredentialFields, credentialValues, redactSensitiveText } from "./credential-store.js";
+import {
+  CREDENTIAL_FIELDS,
+  ENCRYPTED_CREDENTIALS_KEY,
+  clearCredentialFields,
+  credentialValues,
+  decryptCredential,
+  getCredentialKey,
+  normalizeEncryptedCredentialStore,
+  redactSensitiveText
+} from "./credential-store.js";
 
 const activeRuns = new Map();
 
@@ -33,6 +42,8 @@ async function handleMessage(message) {
       return startRun(message);
     case "QUEUE_AGENT_MESSAGE":
       return queueRunMessage(message.runId, message.content);
+    case "REVEAL_CREDENTIAL":
+      return revealCredential(message.field);
     case "CANCEL_AGENT":
       return cancelRun(message.runId);
     default:
@@ -102,6 +113,16 @@ function cancelRun(runId) {
   if (!run) return { cancelled: false };
   cancelRunState(run);
   return { cancelled: true };
+}
+
+async function revealCredential(field) {
+  if (!CREDENTIAL_FIELDS.includes(field)) throw new Error("Unknown credential field.");
+  const stored = await chrome.storage.local.get([ENCRYPTED_CREDENTIALS_KEY]);
+  const encrypted = normalizeEncryptedCredentialStore(stored[ENCRYPTED_CREDENTIALS_KEY]);
+  if (!encrypted.credentials[field]) return "";
+  const key = await getCredentialKey({ create: false });
+  if (!key) throw new Error("Credential encryption key is missing.");
+  return decryptCredential(encrypted.credentials[field], field, key);
 }
 
 export function createRunState() {

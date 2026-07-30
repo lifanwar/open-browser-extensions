@@ -1187,11 +1187,20 @@ function friendlyToolName(name, args = {}) {
   })[name] || `Running ${name}…`;
 }
 
-function togglePasswordVisibility(inputId, button, label) {
+async function togglePasswordVisibility(inputId, button, label) {
   const input = document.querySelector(`#${inputId}`);
   if (!input || !button) return;
-  input.type = input.type === "password" ? "text" : "password";
-  button.setAttribute("aria-label", input.type === "password" ? `Show ${label}` : `Hide ${label}`);
+  if (input.type === "password" && input.value === "••••••••") {
+    try {
+      input.value = await sendMessage({ type: "REVEAL_CREDENTIAL", field: inputId });
+    } catch { /* decrypt gagal, biarkan placeholder */ }
+    input.type = "text";
+    button.setAttribute("aria-label", `Hide ${label}`);
+  } else {
+    input.type = "password";
+    input.value = "••••••••";
+    button.setAttribute("aria-label", `Show ${label}`);
+  }
 }
 
 function resetPasswordField(inputId, button, label) {
