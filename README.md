@@ -98,46 +98,44 @@ Authorization: Bearer <api-key>
 
 ## ⚙️ Configuration
 
-### Chat connection
+### Chat Connection
 
-Configure the Base URL, API key, model, temperature, maximum tool steps, response streaming, and an optional additional system prompt.
+Configure the Base URL, API key, model, temperature, tool-step limit, streaming, and additional system prompt.
 
-The response parser supports standard JSON, OpenAI-style SSE, NDJSON, reasoning fields, streamed tool calls, BOM-prefixed payloads, control bytes, and common proxy envelopes.
+Supports JSON, SSE, NDJSON, reasoning fields, streamed tool calls, and common proxy response formats.
 
-### Search connection
+### Search Connection
 
-Enable **Web search tool**, then choose one connection mode:
+Enable **Web search tool**, then choose:
 
-- **Direct endpoints** — Provide separate Search and Fetch URLs.
-- **9Router-compatible** — Provide one base URL; the extension derives `/search` and `/web/fetch`.
+- **Direct endpoints** — Separate Search and Fetch URLs.
+- **9Router-compatible** — One base URL for `/search` and `/web/fetch`.
 
-Search and Fetch can use separate API keys and models. Search supports Web or News mode with 1–10 results. Fetch can request Markdown, text, or HTML.
+Search and Fetch support separate keys and models. Search provides Web or News results, while Fetch returns Markdown, text, or HTML.
 
-### Browser tool controls
+### Browser Tool Controls
 
-- **Auto-start Network** — Begin capture when a page is first read.
-- **Capture response bodies** — Store textual response bodies for inspection.
-- **Raw values for current host** — Reveal matching Cookie, Authorization, token, and body values only for the active host.
-- **Allow cookie paste/delete** — Enable cookie write, import, and delete tools.
+- **Auto-start Network** — Start capture when a page is read.
+- **Capture response bodies** — Save textual responses for inspection.
+- **Raw values for current host** — Reveal sensitive values only for the active host.
+- **Allow cookie paste/delete** — Enable cookie write and management tools.
 
 ## 🧠 Context and Agent Behavior
 
-Long conversations remain complete in local history. When model-facing context becomes large, older completed turns are summarized into per-conversation memory while recent messages remain verbatim. If compaction is unsupported or fails, the run falls back without blocking the conversation.
+Full conversations stay stored locally. For long chats, older messages are compacted into memory while recent turns remain unchanged.
 
-During an active run, new user instructions are queued and applied at safe boundaries. Completed actions remain checkpoints; unfinished tool calls can be skipped so the model can replan instead of blindly continuing an outdated plan.
+New instructions can be added during an active run. The agent applies them at safe points and replans when necessary.
 
 ## 🔐 Privacy & Security
 
-- Settings, conversations, compacted memory, and appearance are stored in the local Chrome profile.
-- API credentials are encrypted with AES-256-GCM. Ciphertext is stored in `chrome.storage.local`; the non-extractable encryption key is stored in extension IndexedDB.
-- Credential values are redacted from agent events and error output where possible.
-- Sensitive Network values remain hidden by default and require an explicit current-host switch.
-- Cookie write tools require explicit opt-in.
-- The extension only displays reasoning or thinking text returned by the configured provider. It does not extract hidden model reasoning.
+- Conversations, settings, memory, and themes are stored in the local Chrome profile.
+- API credentials are encrypted with AES-256-GCM.
+- Sensitive Network values are hidden by default.
+- Cookie write tools require explicit activation.
+- Only provider-supplied reasoning text is displayed.
+- Data used by the agent may be sent to your configured API endpoints.
 
-Prompts, selected page content, tool results, search queries, fetched URLs, cookies requested by the user, and captured Network data may be sent to the endpoints you configure. Review the provider's privacy policy and enable sensitive tools only when needed.
-
-This extension requires broad browser permissions because its core purpose is page automation and debugging. Use it only on pages and accounts you are authorized to inspect or control.
+The extension requires broad browser permissions for automation and debugging. Use it only on pages and accounts you are authorized to access.
 
 ## 🧪 Development
 
