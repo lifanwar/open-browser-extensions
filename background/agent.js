@@ -1,8 +1,9 @@
 import { createChatCompletion } from "./openai-client.js";
-import { executeTool, getInitialTargetTab } from "./browser-tools.js";
+import { executeTool, getInitialTargetTab } from "./tools/browser-tools.js";
 import { getToolDefinitions } from "./tool-definitions.js";
-import { summarizeSearchForUi, WEB_SEARCH_TOOL_NAME } from "./tools/search/search-tool.js";
+import { summarizeSearchForUi, WEB_SEARCH_TOOL_NAME } from "./tools/search-tool.js";
 import { prepareConversationContext } from "./context-compaction.js";
+import { createSensitiveStreamRedactor, redactSensitiveText, redactSensitiveValue } from "./credential-store.js";
 
 const BASE_SYSTEM_PROMPT = `You are a browser automation assistant running inside a Chrome extension.
 Use the provided tools to inspect and interact with the user's current browser tab.
@@ -82,6 +83,7 @@ export async function runAgent({
       : `Meminta model… langkah ${step}`);
     let stepReasoning = "";
     let stepContent = "";
+    const reasoningRedactor = createSensitiveStreamRedactor(settings);
     const assistant = await createCompletion({
       settings,
       messages,
@@ -91,7 +93,8 @@ export async function runAgent({
         if (!delta) return;
         if (type === "reasoning") {
           stepReasoning += delta;
-          emit("reasoning_delta", { step, delta });
+          const safeDelta = reasoningRedactor.push(delta);
+          if (safeDelta) emit("reasoning_delta", { step, delta: safeDelta });
         }
         if (type === "content") {
           // Buffer model text until the response is classified. Some providers
@@ -102,16 +105,21 @@ export async function runAgent({
       }
     });
     throwIfAborted(signal);
-    const normalizedReasoning = normalizeContent(assistant.reasoning_content || stepReasoning).trim();
+    const finalReasoningDelta = reasoningRedactor.flush();
+    if (finalReasoningDelta) emit("reasoning_delta", { step, delta: finalReasoningDelta });
+    const normalizedReasoning = redactSensitiveText(
+      normalizeContent(assistant.reasoning_content || stepReasoning).trim(),
+      settings
+    );
     if (normalizedReasoning) reasoningSteps.push(`Step ${step}\n${normalizedReasoning}`);
 
     const toolCalls = normalizeToolCalls(assistant.tool_calls, step);
     emit("model_step", { step, toolCallCount: toolCalls.length });
     if (!toolCalls.length) {
-      const content = normalizeContent(assistant.content || stepContent);
+      const content = redactSensitiveText(normalizeContent(assistant.content || stepContent), settings);
       const queuedMessages = takeQueuedMessages({ closeIfEmpty: true });
       if (queuedMessages.length) {
-        if (content) messages.push(createAssistantContextMessage(assistant, content));
+        if (content) messages.push(createAssistantContextMessage(assistant, content, settings));
         appendQueuedUserMessages(messages, queuedMessages);
         queuedReruns += 1;
         emit("queue_applied", { step, count: queuedMessages.length, phase: "before_final" });
@@ -129,11 +137,11 @@ export async function runAgent({
 
     const assistantToolMessage = {
       role: "assistant",
-      content: normalizeContent(assistant.content) || null,
+      content: redactSensitiveText(normalizeContent(assistant.content), settings) || null,
       tool_calls: toolCalls
     };
     if (assistant.reasoning_content != null) {
-      assistantToolMessage.reasoning_content = String(assistant.reasoning_content);
+      assistantToolMessage.reasoning_content = redactSensitiveText(assistant.reasoning_content, settings);
     }
     messages.push(assistantToolMessage);
 
@@ -199,12 +207,12 @@ export async function runAgent({
           id: toolCallId,
           step,
           name,
-          args,
+          args: redactSensitiveValue(args, settings),
           ...(routed.routedFrom ? { routedFrom: routed.routedFrom } : {})
         });
         let result;
         try {
-          result = await execute(name, args, context);
+          result = redactSensitiveValue(await execute(name, args, context), settings);
           emit("tool_result", {
             id: toolCallId,
             step,
@@ -215,7 +223,10 @@ export async function runAgent({
             ...(name === WEB_SEARCH_TOOL_NAME ? { search: summarizeSearchForUi(result) } : {})
           });
         } catch (error) {
-          result = { ok: false, error: error?.message || String(error) };
+          result = {
+            ok: false,
+            error: redactSensitiveText(error?.message || String(error), settings)
+          };
           emit("tool_result", {
             id: toolCallId,
             step,
@@ -273,10 +284,10 @@ function normalizeToolCalls(value, step) {
   }));
 }
 
-function createAssistantContextMessage(assistant, content) {
+function createAssistantContextMessage(assistant, content, settings) {
   const message = { role: "assistant", content };
   if (assistant.reasoning_content != null) {
-    message.reasoning_content = String(assistant.reasoning_content);
+    message.reasoning_content = redactSensitiveText(assistant.reasoning_content, settings);
   }
   return message;
 }
@@ -491,6 +502,7 @@ function normalizeContent(content) {
 
 function safeJson(value) {
   const json = JSON.stringify(value);
+  if (json === undefined) return "null";
   return json.length > 120_000 ? `${json.slice(0, 120_000)}\n[TOOL RESULT TRUNCATED]` : json;
 }
 

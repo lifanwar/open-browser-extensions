@@ -1,3 +1,5 @@
+import { clearCredentialFields, redactSensitiveText, redactSensitiveValue } from "./credential-store.js";
+
 const COMPACTION_VERSION = 1;
 const TRIGGER_CHARACTERS = 24_000;
 const RECENT_CHARACTERS = 12_000;
@@ -21,8 +23,11 @@ export async function prepareConversationContext({
   emit = () => {},
   createCompletion
 }) {
-  const cleanHistory = sanitizeConversationHistory(history);
-  const currentState = normalizeContextState(contextState);
+  const cleanHistory = redactSensitiveValue(sanitizeConversationHistory(history), settings);
+  const normalizedState = normalizeContextState(contextState);
+  const currentState = normalizedState
+    ? { ...normalizedState, summary: redactSensitiveText(normalizedState.summary, settings) }
+    : null;
   const pendingMessages = messagesAfterBoundary(cleanHistory, currentState?.compactedThroughId);
   const currentMessages = buildApiMessages(currentState?.summary, pendingMessages);
 
@@ -51,13 +56,15 @@ export async function prepareConversationContext({
   const recentMessages = pendingMessages.slice(splitIndex);
   emit("status", "Meringkas konteks lama…");
 
+  const compactSettings = {
+    ...settings,
+    streamResponses: false,
+    temperature: 0.1
+  };
+
   try {
     const completion = await createCompletion({
-      settings: {
-        ...settings,
-        streamResponses: false,
-        temperature: 0.1
-      },
+      settings: compactSettings,
       messages: [
         { role: "system", content: SUMMARY_SYSTEM_PROMPT },
         {
@@ -69,7 +76,10 @@ export async function prepareConversationContext({
       signal
     });
 
-    const summary = normalizeText(completion?.content).trim().slice(0, MAX_SUMMARY_CHARACTERS);
+    const summary = redactSensitiveText(
+      normalizeText(completion?.content).trim().slice(0, MAX_SUMMARY_CHARACTERS),
+      settings
+    );
     if (!summary) throw new Error("Model tidak menghasilkan ringkasan konteks.");
 
     const nextState = {
@@ -96,13 +106,15 @@ export async function prepareConversationContext({
     // ponytail: preserve the existing behavior when a compatible provider cannot
     // perform the optional summary call. A later run can try compaction again.
     emit("context_compaction_skipped", {
-      error: error?.message || String(error)
+      error: redactSensitiveText(error?.message || String(error), settings)
     });
     return {
       messages: currentMessages,
       contextState: currentState,
       compacted: false
     };
+  } finally {
+    clearCredentialFields(compactSettings);
   }
 }
 

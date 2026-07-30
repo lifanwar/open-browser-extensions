@@ -1,6 +1,6 @@
 import { deleteAllCurrentPageCookies, deleteCurrentPageCookie, importCurrentPageCookies, listCurrentPageCookies, setCurrentPageCookie } from "./cookie-tools.js";
 import { clearNetwork, getNetwork, startNetwork, stopNetwork } from "./network-debugger.js";
-import { executeWebSearch, isWebSearchTool } from "./tools/search/search-tool.js";
+import { executeWebSearch, isWebSearchTool } from "./search-tool.js";
 import { executePageScript } from "./execute-script.js";
 
 export async function getInitialTargetTab() {
@@ -71,7 +71,9 @@ export async function executeTool(name, args, context) {
 
 async function sendToPage(tabId, message) {
   try {
-    return await chrome.tabs.sendMessage(tabId, message);
+    const response = await chrome.tabs.sendMessage(tabId, message);
+    if (response === undefined) throw new Error(`Content script tidak mengirim respons untuk ${message.type}.`);
+    return response;
   } catch (error) {
     if (String(error?.message || error).includes("Receiving end does not exist")) {
       throw new Error("Content script belum tersedia pada halaman ini. Reload halaman target lalu coba lagi.");

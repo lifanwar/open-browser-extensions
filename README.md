@@ -1,63 +1,154 @@
-# Open Browser Agent
+<p align="center">
+  <img src="icons/icon-128.png" width="112" height="112" alt="Open Browser Agent logo">
+</p>
 
-A clean, non-obfuscated Chrome Manifest V3 browser agent with a Merlin-style side panel, your own OpenAI-compatible endpoint, native function tools, streaming, conversations, reasoning panels, and dark mode.
+<h1 align="center">Open Browser Agent</h1>
 
-## Highlights
+<p align="center">
+  <strong>Bring your own model. Let it work inside your browser.</strong><br>
+  A clean-source Chrome side-panel agent for reading pages, operating interfaces, inspecting network traffic, managing cookies, and researching the web.
+</p>
 
-* Clean HTML, CSS, and JavaScript source with no bundler or minification.
-* OpenAI-compatible `POST /chat/completions` integration.
-* Native `tools` / `tool_calls` browser-agent loop.
-* SSE and NDJSON streaming with incremental answer rendering.
-* Provider reasoning trace support, hidden behind a collapsible button by default.
-* Multiple locally stored conversations with create, select, auto-title, and delete.
-* Rolling context compaction that keeps full chat locally while sending compact memory plus recent turns to the model.
-* System, light, and dark appearance modes.
-* CDP Network capture using protocol 1.3 with 1.2/1.1 fallbacks.
-* Tolerant provider parser for JSON, SSE, BOM, control bytes, and proxy text.
-* **Cookie Tools** — list, set, import, delete cookies. All cookie values (including HttpOnly and auth tokens) are fully readable and exportable. No domain restrictions on import.
-* **Web Search Tools** — optional `SEARCH` and `EXTRACT` tools with Direct Endpoint and 9Router-compatible connections.
+<p align="center">
+  <a href="#-core-features">Core Features</a> •
+  <a href="#-built-in-tools">Built-in Tools</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-configuration">Configuration</a> •
+  <a href="#-privacy--security">Privacy & Security</a>
+</p>
 
-## Install
+<p align="center">
+  <img alt="Chrome 116+" src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white">
+  <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-5F6368">
+  <img alt="OpenAI-compatible" src="https://img.shields.io/badge/API-OpenAI--compatible-10A37F">
+  <img alt="No build step" src="https://img.shields.io/badge/Build-none-7C3AED">
+  <img alt="GPL-3.0 license" src="https://img.shields.io/badge/License-GPL--3.0-blue">
+</p>
 
-1. Extract the ZIP.
+<table align="center">
+  <tr>
+    <td align="center"><img src="docs/images/chat-dark.png" width="140" alt="Agent chat in dark theme"></td>
+    <td align="center"><img src="docs/images/chat-light.png" width="140" alt="Agent chat in light theme"></td>
+    <td align="center"><img src="docs/images/conversations.png" width="140" alt="Local conversation manager"></td>
+    <td align="center"><img src="docs/images/browser-tools.png" width="140" alt="Browser and security tool switches"></td>
+  </tr>
+</table>
+
+---
+
+## Open AI, directly in the browser
+
+Open Browser Agent turns Chrome's side panel into an AI workspace that can understand the active page and take verified actions through native browser tools. Connect any compatible chat endpoint, keep control of sensitive capabilities, and inspect every agent step as it runs.
+
+## ✨ Core Features
+
+- **Bring your own model** — Connect any OpenAI-compatible API and configure the model, temperature, prompt, streaming, and tool limits.
+- **Browser automation** — Read pages, click, fill forms, navigate, switch tabs, scroll, press keys, and run JavaScript.
+- **Live agent activity** — View provider reasoning, tool calls, results, and execution status in real time.
+- **Mid-run steering** — Add new instructions while the agent is still working.
+- **Network inspection** — Capture and filter requests, headers, payloads, status data, and response bodies.
+- **Cookie tools** — View, export, create, import, update, or delete current-page cookies.
+- **Web search and extraction** — Use SEARCH and EXTRACT through direct or 9Router-compatible endpoints.
+- **Context compaction** — Keep full chats locally while sending compact context to the model.
+- **Multiple conversations** — Create, switch, auto-title, save, and delete chats.
+- **Rich response rendering** — Stream Markdown, highlighted code, copy buttons, and scrollable tables.
+- **Light and dark themes** — Use system, light, or dark appearance.
+- **Clean source code** — Dependency-free HTML, CSS, and JavaScript with no bundling or obfuscation.
+
+## 🧰 Built-in Tools
+
+| Area | Tools | Capability |
+| --- | --- | --- |
+| Page understanding | `read_page` | Returns visible text and interactive elements with stable references. |
+| Interaction | `click`, `fill`, `select_option`, `press_key` | Operates forms and page controls through element references. |
+| Navigation | `scroll_page`, `wait`, `navigate` | Handles long pages, asynchronous updates, and HTTP/HTTPS navigation. |
+| Tabs | `list_tabs`, `switch_tab` | Finds and changes the active agent target within the current window. |
+| Advanced page access | `executeScript` | Runs JavaScript in the page's main world for complex DOM or runtime tasks. |
+| Network debugging | `network_start`, `network_get`, `network_clear`, `network_stop` | Captures and inspects recent DevTools Network activity. |
+| Cookie debugging | `cookies_list`, `cookies_set`, `cookies_import`, `cookies_delete`, `cookies_delete_all` | Reads, exports, writes, imports, or removes current-page cookies. |
+| Web research | `web_search_tool` | Uses `SEARCH` for discovery and `EXTRACT` for known URLs. |
+
+Search and cookie-write tools are not advertised to the model until their corresponding switches are enabled.
+
+## 🚀 Quick Start
+
+1. Download or clone this repository.
 2. Open `chrome://extensions`.
 3. Enable **Developer mode**.
-4. Click **Load unpacked**.
-5. Select the `open-browser-agent` folder.
-6. Reload existing web tabs.
-7. Open Settings and enter Base URL, API key, and a tool-capable model.
+4. Select **Load unpacked** and choose the project folder.
+5. Reload any browser tabs that were already open.
+6. Open the side panel, go to **Settings**, and enter your API configuration.
 
-## API request
+Use the extension button or press `Ctrl+M` on Windows/Linux and `Command+M` on macOS.
+
+### Minimum chat configuration
+
+```text
+Base URL: https://api.openai.com/v1
+API key:  <your key>
+Model:    <tool-capable model>
+```
+
+The extension sends requests to:
 
 ```text
 POST <base-url>/chat/completions
 Authorization: Bearer <api-key>
 ```
 
-When streaming is enabled, the request contains `stream: true`. Providers may emit normal OpenAI Chat Completions SSE deltas, including `content`, `reasoning_content`, and `tool_calls`.
+## ⚙️ Configuration
 
-## Web Search Tools
+### Chat Connection
 
-Enable **Web search tool** from **Settings → Browser tools**, then configure **Search Connection**.
+Configure the Base URL, API key, model, temperature, tool-step limit, streaming, and additional system prompt.
 
-* **9Router-compatible** uses `<base-url>/search` and `<base-url>/web/fetch`.
-* **Direct endpoints** uses separate Search and Fetch endpoint URLs.
-* Search and Fetch use separate API keys and models.
-* Public web queries use `SEARCH`, while known URLs use `EXTRACT`.
-* Browser navigation remains available for clicks, forms, login, and other direct interaction.
+Supports JSON, SSE, NDJSON, reasoning fields, streamed tool calls, and common proxy response formats.
 
-## Reasoning display
+### Search Connection
 
-The extension displays only reasoning/thinking text returned by the configured provider. It does not invent or extract hidden reasoning. Model steps and tool calls are shown in an expandable activity timeline attached to the assistant message.
+Enable **Web search tool**, then choose:
 
-## Context compaction
+- **Direct endpoints** — Separate Search and Fetch URLs.
+- **9Router-compatible** — One base URL for `/search` and `/web/fetch`.
 
-Long conversations remain fully available in the local conversation history. Once the model-facing history grows beyond an approximate 24,000-character budget, older completed turns are merged into a compact memory while at least eight recent messages and roughly 12,000 recent characters remain verbatim.
+Search and Fetch support separate keys and models. Search provides Web or News results, while Fetch returns Markdown, text, or HTML.
 
-The compact memory is stored per conversation and reused on later runs. Compaction uses the configured chat model without tools. If the optional summary request is unsupported or fails, the agent falls back to the existing full-history behavior instead of blocking the run.
+### Browser Tool Controls
 
-## Privacy
+- **Auto-start Network** — Start capture when a page is read.
+- **Capture response bodies** — Save textual responses for inspection.
+- **Raw values for current host** — Reveal sensitive values only for the active host.
+- **Allow cookie paste/delete** — Enable cookie write and management tools.
 
-Settings, API credentials, conversations, and appearance are stored in the local Chrome profile. Prompts, selected page content, tool results, search queries, fetched URLs, and captured Network data may be sent to the endpoints configured by the user.
-:::
+## 🧠 Context and Agent Behavior
 
+Full conversations stay stored locally. For long chats, older messages are compacted into memory while recent turns remain unchanged.
+
+New instructions can be added during an active run. The agent applies them at safe points and replans when necessary.
+
+## 🔐 Privacy & Security
+
+- Conversations, settings, memory, and themes are stored in the local Chrome profile.
+- API credentials are encrypted with AES-256-GCM.
+- Sensitive Network values are hidden by default.
+- Cookie write tools require explicit activation.
+- Only provider-supplied reasoning text is displayed.
+- Data used by the agent may be sent to your configured API endpoints.
+
+The extension requires broad browser permissions for automation and debugging. Use it only on pages and accounts you are authorized to access.
+
+## 🧪 Development
+
+No build step is required. Load the source folder directly as an unpacked extension.
+
+Run the regression checks with:
+
+```bash
+npm run check
+```
+
+The test suite covers credential storage, browser-agent behavior, context compaction, and human-in-the-loop steering.
+
+## 📄 License
+
+Licensed under the [GPL-3.0 License](LICENSE).

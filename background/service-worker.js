@@ -1,5 +1,15 @@
 import { runAgent } from "./agent.js";
-import { loadSettings, saveSettings } from "./config.js";
+import { exportSettings, importSettings, loadRunSettings, loadSettings, saveSettings } from "./config.js";
+import {
+  CREDENTIAL_FIELDS,
+  ENCRYPTED_CREDENTIALS_KEY,
+  clearCredentialFields,
+  credentialValues,
+  decryptCredential,
+  getCredentialKey,
+  normalizeEncryptedCredentialStore,
+  redactSensitiveText
+} from "./credential-store.js";
 
 const activeRuns = new Map();
 
@@ -18,16 +28,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-async function handleMessage(message) {
+async function handleMessage(message, sender) {
   switch (message?.type) {
     case "GET_SETTINGS":
       return loadSettings();
     case "SAVE_SETTINGS":
       return saveSettings(message.settings || {});
+    case "EXPORT_SETTINGS":
+      return exportSettings();
+    case "IMPORT_SETTINGS":
+      return importSettings(message.snapshot || {});
     case "RUN_AGENT":
       return startRun(message);
     case "QUEUE_AGENT_MESSAGE":
       return queueRunMessage(message.runId, message.content);
+    case "REVEAL_CREDENTIAL":
+      assertCredentialRevealSender(sender);
+      return revealCredential(message.field);
     case "CANCEL_AGENT":
       return cancelRun(message.runId);
     default:
@@ -39,10 +56,6 @@ async function startRun(message) {
   const runId = String(message.runId || crypto.randomUUID());
   if (activeRuns.has(runId)) throw new Error("Run ID sedang digunakan.");
 
-  const settings = { ...(await loadSettings()), ...(message.settings || {}) };
-  if (!settings.baseUrl) throw new Error("Base URL belum diatur.");
-  if (!settings.model) throw new Error("Model belum diatur.");
-
   const run = createRunState();
   activeRuns.set(runId, run);
   let emitChain = Promise.resolve();
@@ -53,12 +66,21 @@ async function startRun(message) {
   };
 
   try {
+    const loadedSettings = await loadRunSettings();
+    if (run.controller.signal.aborted) {
+      clearCredentialFields(loadedSettings);
+      throw new DOMException("Aborted", "AbortError");
+    }
+    run.settings = { ...loadedSettings, ...(message.settings || {}) };
+    if (!run.settings.baseUrl) throw new Error("Base URL belum diatur.");
+    if (!run.settings.model) throw new Error("Model belum diatur.");
+
     emit("status", "Agent dimulai.");
     const result = await runAgent({
       runId,
       history: message.history || [],
       contextState: message.contextState || null,
-      settings,
+      settings: run.settings,
       signal: run.controller.signal,
       emit,
       takeQueuedMessages: (options) => takeQueuedMessages(run, options)
@@ -67,17 +89,17 @@ async function startRun(message) {
     await emitChain;
     return result;
   } catch (error) {
+    const messageText = redactSensitiveText(error?.message || String(error), credentialValues(run.settings));
     if (run.controller.signal.aborted) {
       emit("cancelled", "Agent dihentikan.");
       await emitChain;
       throw new Error("Agent dihentikan.");
     }
-    emit("error", error?.message || String(error));
+    emit("error", messageText);
     await emitChain;
-    throw error;
+    throw new Error(messageText);
   } finally {
-    run.acceptingMessages = false;
-    run.queue.length = 0;
+    disposeRunState(run);
     if (activeRuns.get(runId) === run) activeRuns.delete(runId);
   }
 }
@@ -98,11 +120,29 @@ function cancelRun(runId) {
   return { cancelled: true };
 }
 
+function assertCredentialRevealSender(sender) {
+  const sidepanelUrl = chrome.runtime.getURL("sidepanel/");
+  if (sender?.id !== chrome.runtime.id || sender?.tab || !String(sender?.url || "").startsWith(sidepanelUrl)) {
+    throw new Error("Credential reveal is only allowed from the extension side panel.");
+  }
+}
+
+async function revealCredential(field) {
+  if (!CREDENTIAL_FIELDS.includes(field)) throw new Error("Unknown credential field.");
+  const stored = await chrome.storage.local.get([ENCRYPTED_CREDENTIALS_KEY]);
+  const encrypted = normalizeEncryptedCredentialStore(stored[ENCRYPTED_CREDENTIALS_KEY]);
+  if (!encrypted.credentials[field]) return "";
+  const key = await getCredentialKey({ create: false });
+  if (!key) throw new Error("Credential encryption key is missing.");
+  return decryptCredential(encrypted.credentials[field], field, key);
+}
+
 export function createRunState() {
   return {
     controller: new AbortController(),
     queue: [],
-    acceptingMessages: true
+    acceptingMessages: true,
+    settings: null
   };
 }
 
@@ -129,5 +169,18 @@ export function cancelRunState(run) {
   run.acceptingMessages = false;
   run.queue.length = 0;
   run.controller.abort();
+  clearRunCredentials(run);
   return true;
+}
+
+export function disposeRunState(run) {
+  if (!run) return;
+  run.acceptingMessages = false;
+  run.queue.length = 0;
+  clearRunCredentials(run);
+}
+
+function clearRunCredentials(run) {
+  clearCredentialFields(run.settings);
+  run.settings = null;
 }

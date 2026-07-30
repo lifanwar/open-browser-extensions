@@ -5,7 +5,13 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     Promise.resolve(handle(message))
       .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
+      .catch((error) => {
+        sendResponse({
+          ok: false,
+          error: error?.message || String(error)
+        });
+      });
+
     return true;
   });
 

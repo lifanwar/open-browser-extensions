@@ -336,8 +336,7 @@ async function submitPrompt(rawContent) {
       type: "RUN_AGENT",
       runId: currentRunId,
       history,
-      contextState: getActiveConversation()?.contextState || null,
-      settings
+      contextState: getActiveConversation()?.contextState || null
     });
     const contextUpdated = applyConversationContextState(result?.contextState);
     if (result?.content && result.content !== doneEventContent) {
@@ -1188,11 +1187,23 @@ function friendlyToolName(name, args = {}) {
   })[name] || `Running ${name}…`;
 }
 
-function togglePasswordVisibility(inputId, button, label) {
+async function togglePasswordVisibility(inputId, button, label) {
   const input = document.querySelector(`#${inputId}`);
   if (!input || !button) return;
-  input.type = input.type === "password" ? "text" : "password";
-  button.setAttribute("aria-label", input.type === "password" ? `Show ${label}` : `Hide ${label}`);
+  if (input.type === "password") {
+    if (input.value === "••••••••") {
+      try {
+        input.value = await sendMessage({ type: "REVEAL_CREDENTIAL", field: inputId });
+      } catch {
+        return;
+      }
+    }
+    input.type = "text";
+    button.setAttribute("aria-label", `Hide ${label}`);
+  } else {
+    input.type = "password";
+    button.setAttribute("aria-label", `Show ${label}`);
+  }
 }
 
 function resetPasswordField(inputId, button, label) {

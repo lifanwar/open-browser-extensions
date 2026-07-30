@@ -1,3 +1,5 @@
+import { redactSensitiveText, redactSensitiveValue } from "../credential-store.js";
+
 const SEARCH_TIMEOUT_MS = 25_000;
 const MAX_SEARCH_RESULTS = 10;
 const MAX_QUERY_LENGTH = 2_000;
@@ -45,12 +47,16 @@ export async function executeWebSearch(args = {}, context = {}) {
   const task = normalizeTask(args, settings);
   const connection = resolveConnection(settings, task.mode);
   const request = buildRequest(connection, task);
-  const response = await requestJson(request, context.signal);
-
-  if (task.mode === "SEARCH") {
-    return normalizeSearchResponse(response.payload, task, connection.mode);
+  try {
+    const response = await requestJson(request, context.signal);
+    if (task.mode === "SEARCH") {
+      return normalizeSearchResponse(response.payload, task, connection.mode);
+    }
+    return normalizeFetchResponse(response.payload, task, connection.mode, response.rawText);
+  } finally {
+    request.apiKey = "";
+    connection.apiKey = "";
   }
-  return normalizeFetchResponse(response.payload, task, connection.mode, response.rawText);
 }
 
 export function summarizeSearchForUi(value) {
@@ -165,16 +171,22 @@ async function requestJson(request, parentSignal) {
   else parentSignal?.addEventListener?.("abort", abortFromParent, { once: true });
 
   try {
-    const response = await fetch(request.endpoint, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${request.apiKey}`
-      },
-      body: JSON.stringify(request.body),
-      signal: controller.signal
-    });
+    const headers = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${request.apiKey}`
+    };
+    let response;
+    try {
+      response = await fetch(request.endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(request.body),
+        signal: controller.signal
+      });
+    } finally {
+      delete headers.Authorization;
+    }
 
     const rawText = await response.text();
     const payload = parsePayload(rawText);
@@ -186,14 +198,21 @@ async function requestJson(request, parentSignal) {
         : response.status === 429
           ? "RATE_LIMIT_ERROR"
           : "PROVIDER_ERROR";
-      throw createSearchError(code, `Search connection returned HTTP ${response.status}${detail ? `: ${truncate(detail, 500)}` : ""}`, response.status);
+      const safeDetail = redactSensitiveText(detail, [request.apiKey]);
+      throw createSearchError(code, `Search connection returned HTTP ${response.status}${safeDetail ? `: ${truncate(safeDetail, 500)}` : ""}`, response.status);
     }
 
     if (payload && typeof payload === "object" && payload.success === false) {
-      throw createSearchError("PROVIDER_ERROR", extractErrorMessage(payload) || "Search provider reported an unsuccessful response.");
+      throw createSearchError(
+        "PROVIDER_ERROR",
+        redactSensitiveText(extractErrorMessage(payload) || "Search provider reported an unsuccessful response.", [request.apiKey])
+      );
     }
 
-    return { payload, rawText };
+    return {
+      payload: redactSensitiveValue(payload, [request.apiKey]),
+      rawText: redactSensitiveText(rawText, [request.apiKey])
+    };
   } catch (error) {
     if (controller.signal.aborted) {
       if (parentSignal?.aborted || controller.signal.reason === "cancelled") {
@@ -202,7 +221,7 @@ async function requestJson(request, parentSignal) {
       throw createSearchError("TIMEOUT_ERROR", "Search request timed out after 25 seconds.");
     }
     if (error?.searchToolError) throw error;
-    throw createSearchError("NETWORK_ERROR", `Search connection request failed: ${error?.message || String(error)}`);
+    throw createSearchError("NETWORK_ERROR", `Search connection request failed: ${redactSensitiveText(error?.message || String(error), [request.apiKey])}`);
   } finally {
     clearTimeout(timeout);
     parentSignal?.removeEventListener?.("abort", abortFromParent);
