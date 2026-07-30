@@ -2,14 +2,15 @@
   const refToElement = new Map();
   let refCounter = 0;
 
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    Promise.resolve(handle(message))
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, error: error?.message || String(error) }));
-    return true;
+  chrome.runtime.onMessage.addListener((message) => {
+    try {
+      return handle(message);
+    } catch (error) {
+      return { ok: false, error: error?.message || String(error) };
+    }
   });
 
-  async function handle(message) {
+  function handle(message) {
     switch (message?.type) {
       case "READ_PAGE": return readPage();
       case "CLICK": return clickElement(message.ref);
@@ -70,16 +71,15 @@
     };
   }
 
-  async function clickElement(ref) {
+  function clickElement(ref) {
     const element = getElement(ref);
     element.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
     element.focus({ preventScroll: true });
     element.click();
-    await sleep(350);
     return { ok: true, clicked: ref, text: accessibleName(element).slice(0, 200) };
   }
 
-  async function fillElement(ref, text) {
+  function fillElement(ref, text) {
     const element = getElement(ref);
     if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element.isContentEditable)) {
       throw new Error(`${ref} bukan input, textarea, atau contenteditable.`);
@@ -118,14 +118,13 @@
     return { ok: true, key, ref: ref || null };
   }
 
-  async function scroll(message) {
+  function scroll(message) {
     const direction = message.direction;
     const amount = Math.max(100, Math.min(5000, Number(message.amount || 700)));
     const target = message.ref ? getElement(message.ref) : window;
-    if (direction === "top") target.scrollTo?.({ top: 0, behavior: "smooth" });
-    else if (direction === "bottom") target.scrollTo?.({ top: target === window ? document.documentElement.scrollHeight : target.scrollHeight, behavior: "smooth" });
-    else target.scrollBy?.({ top: direction === "up" ? -amount : amount, behavior: "smooth" });
-    await sleep(450);
+    if (direction === "top") target.scrollTo?.({ top: 0, behavior: "instant" });
+    else if (direction === "bottom") target.scrollTo?.({ top: target === window ? document.documentElement.scrollHeight : target.scrollHeight, behavior: "instant" });
+    else target.scrollBy?.({ top: direction === "up" ? -amount : amount, behavior: "instant" });
     return { ok: true, direction, amount, scrollY: window.scrollY };
   }
 
@@ -200,5 +199,7 @@
     return key;
   }
 
-  function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+  // ponytail: semua fungsi sudah sync — sleep tidak lagi diperlukan.
+  // Jika suatu saat diperlukan delay async, tambahkan await sleep(n) di
+  // handle() saja dengan return true kembali.
 })();
