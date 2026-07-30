@@ -1,4 +1,4 @@
-import { WEB_SEARCH_TOOL_DEFINITION } from "./tools/search/search-tool.js";
+import { WEB_SEARCH_TOOL_DEFINITION } from "./tools/search-tool.js";
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: "function",

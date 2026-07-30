@@ -1,4 +1,4 @@
-import { redactSensitiveText, redactSensitiveValue } from "../../credential-store.js";
+import { redactSensitiveText, redactSensitiveValue } from "../credential-store.js";
 
 const SEARCH_TIMEOUT_MS = 25_000;
 const MAX_SEARCH_RESULTS = 10;

@@ -1,7 +1,7 @@
 import { createChatCompletion } from "./openai-client.js";
-import { executeTool, getInitialTargetTab } from "./browser-tools.js";
+import { executeTool, getInitialTargetTab } from "./tools/browser-tools.js";
 import { getToolDefinitions } from "./tool-definitions.js";
-import { summarizeSearchForUi, WEB_SEARCH_TOOL_NAME } from "./tools/search/search-tool.js";
+import { summarizeSearchForUi, WEB_SEARCH_TOOL_NAME } from "./tools/search-tool.js";
 import { prepareConversationContext } from "./context-compaction.js";
 import { createSensitiveStreamRedactor, redactSensitiveText, redactSensitiveValue } from "./credential-store.js";
 

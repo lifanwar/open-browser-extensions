@@ -1,6 +1,6 @@
 import { deleteAllCurrentPageCookies, deleteCurrentPageCookie, importCurrentPageCookies, listCurrentPageCookies, setCurrentPageCookie } from "./cookie-tools.js";
 import { clearNetwork, getNetwork, startNetwork, stopNetwork } from "./network-debugger.js";
-import { executeWebSearch, isWebSearchTool } from "./tools/search/search-tool.js";
+import { executeWebSearch, isWebSearchTool } from "./search-tool.js";
 import { executePageScript } from "./execute-script.js";
 
 export async function getInitialTargetTab() {
