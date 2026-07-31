@@ -6,7 +6,7 @@ import { executePageScript } from "./execute-script.js";
 export async function getInitialTargetTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = tabs.find((item) => isNormalWebUrl(item.url));
-  if (!tab?.id) throw new Error("Tidak ada tab web aktif yang dapat dikontrol.");
+  if (!tab?.id) throw new Error("No active web tab to control.");
   return tab;
 }
 
@@ -16,7 +16,7 @@ export async function executeTool(name, args, context) {
   if (name === "switch_tab") return switchTab(args, context);
 
   const tabId = context.targetTabId;
-  if (!tabId) throw new Error("Target tab belum tersedia.");
+  if (!tabId) throw new Error("Target tab is not ready yet.");
 
   switch (name) {
     case "executeScript":
@@ -26,7 +26,7 @@ export async function executeTool(name, args, context) {
         try {
           await startNetwork(tabId, { captureBodies: context.settings.captureResponseBodies });
         } catch (error) {
-          context.emit("status", `Network capture tidak aktif: ${error.message}`);
+          context.emit("status", `Network capture inactive: ${error.message}`);
         }
       }
       return sendToPage(tabId, { type: "READ_PAGE" });
@@ -65,18 +65,18 @@ export async function executeTool(name, args, context) {
     case "cookies_delete_all":
       return deleteAllCurrentPageCookies(tabId, args, context.settings);
     default:
-      throw new Error(`Tool tidak dikenal: ${name}`);
+      throw new Error(`Unknown tool: ${name}`);
   }
 }
 
 async function sendToPage(tabId, message) {
   try {
     const response = await chrome.tabs.sendMessage(tabId, message);
-    if (response === undefined) throw new Error(`Content script tidak mengirim respons untuk ${message.type}.`);
+    if (response === undefined) throw new Error(`Content script did not send a response for ${message.type}.`);
     return response;
   } catch (error) {
     if (String(error?.message || error).includes("Receiving end does not exist")) {
-      throw new Error("Content script belum tersedia pada halaman ini. Reload halaman target lalu coba lagi.");
+      throw new Error("Content script is not available on this page. Reload the target page and try again.");
     }
     throw error;
   }
@@ -99,7 +99,7 @@ async function listTabs() {
 async function switchTab(args, context) {
   const tabId = Number(args.tab_id);
   const tab = await chrome.tabs.get(tabId);
-  if (!isNormalWebUrl(tab.url)) throw new Error("Tab tersebut bukan halaman http/https yang dapat dikontrol.");
+  if (!isNormalWebUrl(tab.url)) throw new Error("That tab is not an http/https page that can be controlled.");
   context.targetTabId = tabId;
   await chrome.tabs.update(tabId, { active: true });
   return { switched: true, tab_id: tabId, title: tab.title, url: tab.url };
@@ -109,7 +109,7 @@ function normalizeHttpUrl(value) {
   let input = String(value || "").trim();
   if (!/^[a-z]+:\/\//i.test(input)) input = `https://${input}`;
   const url = new URL(input);
-  if (!["http:", "https:"].includes(url.protocol)) throw new Error("Hanya URL http/https yang didukung.");
+  if (!["http:", "https:"].includes(url.protocol)) throw new Error("Only http/https URLs are supported.");
   return url.href;
 }
 

@@ -54,7 +54,7 @@ export async function prepareConversationContext({
 
   const olderMessages = pendingMessages.slice(0, splitIndex);
   const recentMessages = pendingMessages.slice(splitIndex);
-  emit("status", "Meringkas konteks lama…");
+  emit("status", "Summarizing old context…");
 
   const compactSettings = {
     ...settings,
@@ -80,7 +80,7 @@ export async function prepareConversationContext({
       normalizeText(completion?.content).trim().slice(0, MAX_SUMMARY_CHARACTERS),
       settings
     );
-    if (!summary) throw new Error("Model tidak menghasilkan ringkasan konteks.");
+    if (!summary) throw new Error("Model did not produce a context summary.");
 
     const nextState = {
       version: COMPACTION_VERSION,

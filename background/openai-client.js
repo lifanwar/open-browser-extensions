@@ -2,7 +2,7 @@ import { credentialValues, redactSensitiveText } from "./credential-store.js";
 
 export function buildChatCompletionsUrl(baseUrl) {
   const trimmed = String(baseUrl || "").trim().replace(/\/+$/, "");
-  if (!trimmed) throw new Error("Base URL belum diisi.");
+  if (!trimmed) throw new Error("Base URL is not set.");
   if (/\/chat\/completions$/i.test(trimmed)) return trimmed;
   return `${trimmed}/chat/completions`;
 }
@@ -62,7 +62,7 @@ export async function createChatCompletion({ settings, messages, tools, signal, 
   } catch (error) {
     const preview = createResponsePreview(raw);
     throw new Error(
-      `API mengembalikan respons yang tidak dapat diproses (${response.status}). ` +
+      `API returned a response that could not be processed (${response.status}). ` +
       `${redactSensitiveText(error.message, credentialValues(settings))}\nPreview: ${redactSensitiveText(preview, credentialValues(settings))}`
     );
   }
@@ -115,7 +115,7 @@ async function consumeStreamingCompletion(body, contentType, onDelta, signal) {
     return message;
   }
 
-  throw new Error("API stream selesai tanpa message, delta, atau tool call.");
+  throw new Error("API stream ended without a message, delta, or tool call.");
 }
 
 function consumeCompleteLines(buffer, state, onDelta) {
@@ -260,7 +260,7 @@ function extractAssistantMessage(data) {
   const envelope = unwrapEnvelope(data);
   const message = envelope?.choices?.[0]?.message;
   if (!message) {
-    throw new Error("API tidak mengembalikan choices[0].message dalam format Chat Completions.");
+    throw new Error("API did not return choices[0].message in Chat Completions format.");
   }
   return message;
 }
@@ -293,7 +293,7 @@ export function parseCompatibleJson(raw, contentType = "") {
     try { return JSON.parse(escapeUnquotedControlCharacters(candidate)); } catch (error) { lastError = error; }
   }
 
-  throw new Error(lastError?.message || "Format JSON tidak dikenali.");
+  throw new Error(lastError?.message || "Unrecognized JSON format.");
 }
 
 function parseSsePayload(text) {

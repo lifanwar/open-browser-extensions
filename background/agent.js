@@ -79,8 +79,8 @@ export async function runAgent({
     const currentMaxSteps = maxToolSteps === null ? null : maxToolSteps + queuedReruns;
     emit("step_start", { step, maxSteps: currentMaxSteps });
     emit("status", currentMaxSteps
-      ? `Meminta model… langkah ${step}/${currentMaxSteps}`
-      : `Meminta model… langkah ${step}`);
+      ? `Requesting model… step ${step}/${currentMaxSteps}`
+      : `Requesting model… step ${step}`);
     let stepReasoning = "";
     let stepContent = "";
     const reasoningRedactor = createSensitiveStreamRedactor(settings);
@@ -125,7 +125,7 @@ export async function runAgent({
         emit("queue_applied", { step, count: queuedMessages.length, phase: "before_final" });
         continue;
       }
-      if (!content) throw new Error("Model berhenti tanpa jawaban atau tool call.");
+      if (!content) throw new Error("Model stopped without a reply or tool call.");
       emit("assistant_delta", { step, delta: content, final: true });
       return {
         content,
@@ -264,7 +264,7 @@ export async function runAgent({
     if (restartForQueue) continue;
   }
 
-  throw new Error(`Agent dihentikan setelah ${maxToolSteps} langkah tool agar tidak masuk loop.`);
+  throw new Error(`Agent stopped after ${maxToolSteps} tool steps to avoid an infinite loop.`);
 }
 
 const QUEUED_USER_PREFIX = "[User instruction sent during active run]";
@@ -272,7 +272,7 @@ const SKIPPED_TOOL_REASON = "Skipped because a newer user instruction requires r
 
 function throwIfAborted(signal) {
   if (!signal?.aborted) return;
-  const error = new Error("Agent dihentikan.");
+  const error = new Error("Agent stopped.");
   error.name = "AbortError";
   throw error;
 }
@@ -388,7 +388,7 @@ function parseArguments(raw, toolName) {
       const repaired = repairWebSearchArguments(source);
       if (repaired) return repaired;
     }
-    throw new Error(`Argumen tool bukan JSON valid: ${source.slice(0, 300)}`);
+    throw new Error(`Tool arguments are not valid JSON: ${source.slice(0, 300)}`);
   }
 }
 

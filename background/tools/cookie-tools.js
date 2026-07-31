@@ -30,7 +30,7 @@ export async function listCurrentPageCookies(tabId, args = {}) {
     count: items.length,
     cookies: items,
     export_json: JSON.stringify(exportable, null, 2),
-    note: "Semua cookie ditampilkan apa adanya, termasuk HttpOnly dan auth cookies."
+    note: "All cookies are shown as-is, including HttpOnly and auth cookies."
   };
 }
 
@@ -39,7 +39,7 @@ export async function setCurrentPageCookie(tabId, args, settings) {
   const tab = await getWebTab(tabId);
   const normalized = normalizeImportCookie(args.cookie || args, tab.url);
   const result = await chrome.cookies.set(normalized);
-  if (!result) throw new Error("Chrome tidak mengembalikan cookie setelah penyimpanan.");
+  if (!result) throw new Error("Chrome did not return the cookie after saving.");
   return { saved: true, cookie: safeCookieResult(result) };
 }
 
@@ -47,7 +47,7 @@ export async function importCurrentPageCookies(tabId, args, settings) {
   assertWritesEnabled(settings);
   const tab = await getWebTab(tabId);
   const input = parseCookieInput(args.cookies_json ?? args.cookies ?? args.json);
-  if (!Array.isArray(input) || !input.length) throw new Error("Daftar cookie kosong.");
+  if (!Array.isArray(input) || !input.length) throw new Error("Cookie list is empty.");
 
   const results = [];
   for (const item of input) {
@@ -98,11 +98,11 @@ export async function deleteAllCurrentPageCookies(tabId, args, settings) {
 }
 
 function normalizeImportCookie(raw, pageUrl) {
-  if (!raw || typeof raw !== "object") throw new Error("Cookie harus berupa object.");
+  if (!raw || typeof raw !== "object") throw new Error("Cookie must be an object.");
   const page = new URL(pageUrl);
   const name = String(raw.name || "").trim();
   const value = String(raw.value ?? "");
-  if (!name) throw new Error("Nama cookie wajib diisi.");
+  if (!name) throw new Error("Cookie name is required.");
   const requestedDomain = raw.domain ? normalizeDomain(raw.domain) : "";
 
   const secure = raw.secure === true || page.protocol === "https:";
@@ -131,8 +131,8 @@ function normalizeImportCookie(raw, pageUrl) {
 
 function parseCookieInput(value) {
   if (Array.isArray(value)) return value;
-  if (typeof value !== "string") throw new Error("Gunakan array cookie atau string JSON.");
-  try { return JSON.parse(value); } catch { throw new Error("JSON cookie tidak valid."); }
+  if (typeof value !== "string") throw new Error("Use a cookie array or JSON string.");
+  try { return JSON.parse(value); } catch { throw new Error("Invalid cookie JSON."); }
 }
 
 function removeDetails(cookie) {
@@ -163,13 +163,13 @@ function safeCookieResult(cookie) {
 
 async function getWebTab(tabId) {
   const tab = await chrome.tabs.get(tabId);
-  if (!/^https?:\/\//i.test(tab.url || "")) throw new Error("Cookie tools hanya tersedia pada halaman http/https.");
+  if (!/^https?:\/\//i.test(tab.url || "")) throw new Error("Cookie tools are only available on http/https pages.");
   return tab;
 }
 
 function assertWritesEnabled(settings) {
   if (!settings?.allowCookieWrites) {
-    throw new Error("Cookie write tools belum diaktifkan. Buka Settings lalu aktifkan Allow cookie paste/delete.");
+    throw new Error("Cookie write tools are not enabled. Open Settings and enable Allow cookie paste/delete.");
   }
 }
 

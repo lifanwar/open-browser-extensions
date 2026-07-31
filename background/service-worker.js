@@ -48,13 +48,13 @@ async function handleMessage(message, sender) {
     case "CANCEL_AGENT":
       return cancelRun(message.runId);
     default:
-      throw new Error(`Pesan tidak dikenal: ${message?.type}`);
+      throw new Error(`Unknown message: ${message?.type}`);
   }
 }
 
 async function startRun(message) {
   const runId = String(message.runId || crypto.randomUUID());
-  if (activeRuns.has(runId)) throw new Error("Run ID sedang digunakan.");
+  if (activeRuns.has(runId)) throw new Error("Run ID is already in use.");
 
   const run = createRunState();
   activeRuns.set(runId, run);
@@ -72,10 +72,10 @@ async function startRun(message) {
       throw new DOMException("Aborted", "AbortError");
     }
     run.settings = { ...loadedSettings, ...(message.settings || {}) };
-    if (!run.settings.baseUrl) throw new Error("Base URL belum diatur.");
-    if (!run.settings.model) throw new Error("Model belum diatur.");
+    if (!run.settings.baseUrl) throw new Error("Base URL is not set.");
+    if (!run.settings.model) throw new Error("Model is not set.");
 
-    emit("status", "Agent dimulai.");
+    emit("status", "Agent started.");
     const result = await runAgent({
       runId,
       history: message.history || [],
@@ -91,9 +91,9 @@ async function startRun(message) {
   } catch (error) {
     const messageText = redactSensitiveText(error?.message || String(error), credentialValues(run.settings));
     if (run.controller.signal.aborted) {
-      emit("cancelled", "Agent dihentikan.");
+      emit("cancelled", "Agent stopped.");
       await emitChain;
-      throw new Error("Agent dihentikan.");
+      throw new Error("Agent stopped.");
     }
     emit("error", messageText);
     await emitChain;
@@ -107,7 +107,7 @@ async function startRun(message) {
 function queueRunMessage(runId, rawContent) {
   const id = String(runId || "");
   const run = activeRuns.get(id);
-  if (!run) throw new Error("Run aktif tidak ditemukan. Instruksi tidak dimasukkan ke antrean.");
+  if (!run) throw new Error("No active run found. Instruction was not queued.");
 
   const queueLength = enqueueRunMessage(run, rawContent);
   return { accepted: true, runId: id, queueLength };
@@ -148,9 +148,9 @@ export function createRunState() {
 
 export function enqueueRunMessage(run, rawContent) {
   const content = String(rawContent || "").trim();
-  if (!content) throw new Error("Instruksi antrean tidak boleh kosong.");
+  if (!content) throw new Error("Queued instruction must not be empty.");
   if (!run || !run.acceptingMessages || run.controller.signal.aborted) {
-    throw new Error("Run sudah tidak aktif. Instruksi tidak dimasukkan ke antrean.");
+    throw new Error("Run is no longer active. Instruction was not queued.");
   }
 
   run.queue.push(content);

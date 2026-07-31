@@ -38,13 +38,13 @@ export async function startNetwork(tabId, options = {}) {
         lastError = error;
         const message = String(error?.message || error);
         if (/Another debugger|already attached|target is already being debugged/i.test(message)) {
-          throw new Error("Tab sedang digunakan oleh DevTools atau debugger lain.");
+          throw new Error("Tab is in use by DevTools or another debugger.");
         }
         if (!/protocol version|not supported|incompatible/i.test(message)) throw error;
       }
     }
     if (!attachedVersion) {
-      throw new Error(`Debugger tidak dapat dipasang. Versi CDP yang dicoba: ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}. ${String(lastError?.message || lastError || "")}`);
+      throw new Error(`Debugger could not be attached. Tried CDP version(s): ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}. ${String(lastError?.message || lastError || "")}`);
     }
   }
 
