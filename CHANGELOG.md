@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0
+
+- Added credential encryption, SEARCH/EXTRACT tools, Network Debugger, credential reveal, and streaming with reasoning.
+- Refactored redaction into an upper layer and moved tool files into `background/tools/`.
+- Removed deprecated search-tools in favor of the new credential reveal handler.
+- Translated all user-facing messages from Indonesian to English.
+- Simplified Configuration, Context, and Privacy docs; rewrote Core Features; restored Ctrl+M shortcut.
+
 ## 1.5.2
 
 - Fixed memory leaks in network debugger: prunes per-tab state on tab close so `states` Map doesn't grow unbounded.
