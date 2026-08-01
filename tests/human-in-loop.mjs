@@ -18,7 +18,9 @@ globalThis.chrome = {
 
 const { runAgent } = await import("../background/agent.js");
 
-const PREFIX = "[User instruction sent during active run]";
+const PREFIX = "[Latest user instruction received during active run]";
+const BATCH_PREFIX = "[Latest user instructions received during active run; apply in order, last wins on conflicts]";
+const DRAFT_PREFIX = "[Uncommitted assistant draft]";
 const SKIPPED_REASON = "Skipped because a newer user instruction requires replanning the remaining tool calls.";
 
 function createQueueHarness(initial = []) {
@@ -178,7 +180,7 @@ async function runScenario({ queue, complete, execute = async () => ({ ok: true 
         return { role: "assistant", content: "Old candidate" };
       }
       assert.deepEqual(messages.slice(-2).map((message) => message.role), ["assistant", "user"]);
-      assert.equal(messages.at(-2).content, "Old candidate");
+      assert.equal(messages.at(-2).content, `${DRAFT_PREFIX}\nOld candidate`);
       assert.equal(messages.at(-1).content, `${PREFIX}\nInclude the newly requested detail`);
       return { role: "assistant", content: "Updated final answer" };
     }
@@ -303,12 +305,8 @@ async function runScenario({ queue, complete, execute = async () => ({ ok: true 
         queue.enqueue("Third instruction");
         return { role: "assistant", content: "Candidate" };
       }
-      const queuedUsers = messages.filter((message) => message.role === "user" && message.content.startsWith(PREFIX));
-      assert.deepEqual(queuedUsers.map((message) => message.content), [
-        `${PREFIX}\nFirst instruction`,
-        `${PREFIX}\nSecond instruction`,
-        `${PREFIX}\nThird instruction`
-      ]);
+      assert.deepEqual(messages.slice(-2).map((message) => message.role), ["assistant", "user"]);
+      assert.equal(messages.at(-1).content, `${BATCH_PREFIX}\n1. First instruction\n2. Second instruction\n3. Third instruction`);
       return { role: "assistant", content: "FIFO complete" };
     }
   });
@@ -339,7 +337,7 @@ async function runScenario({ queue, complete, execute = async () => ({ ok: true 
       controller.abort();
       return { completed: name };
     }
-  }), /Agent dihentikan/);
+  }), /Agent stopped/);
   assert.equal(completionCount, 1);
   assert.deepEqual(executed, ["read_page"]);
 }
@@ -359,8 +357,8 @@ const {
   assert.deepEqual(takeQueuedMessages(run), ["first", "second"]);
   assert.deepEqual(takeQueuedMessages(run, { closeIfEmpty: true }), []);
   assert.equal(run.acceptingMessages, false);
-  assert.throws(() => enqueueRunMessage(run, "late"), /tidak aktif/i);
-  assert.throws(() => enqueueRunMessage(createRunState(), "   "), /tidak boleh kosong/i);
+  assert.throws(() => enqueueRunMessage(run, "late"), /no longer active/i);
+  assert.throws(() => enqueueRunMessage(createRunState(), "   "), /must not be empty/i);
 }
 
 {
@@ -377,7 +375,7 @@ const {
   assert.equal(run.controller.signal.aborted, true);
   assert.equal(run.acceptingMessages, false);
   assert.deepEqual(run.queue, []);
-  assert.throws(() => enqueueRunMessage(run, "new message"), /tidak aktif/i);
+  assert.throws(() => enqueueRunMessage(run, "new message"), /no longer active/i);
 
   const nextRun = createRunState();
   enqueueRunMessage(nextRun, "new run only");

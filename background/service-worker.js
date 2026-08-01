@@ -107,7 +107,9 @@ async function startRun(message) {
 function queueRunMessage(runId, rawContent) {
   const id = String(runId || "");
   const run = activeRuns.get(id);
-  if (!run) throw new Error("No active run found. Instruction was not queued.");
+  if (!run || !run.acceptingMessages || run.controller.signal.aborted) {
+    return { accepted: false, runId: id, retryAsNewRun: true };
+  }
 
   const queueLength = enqueueRunMessage(run, rawContent);
   return { accepted: true, runId: id, queueLength };

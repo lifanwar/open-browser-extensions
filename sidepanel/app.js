@@ -51,6 +51,7 @@ let doneEventContent = null;
 let liveDraft = null;
 let liveNodes = null;
 let queueSubmissionPending = false;
+const deferredPrompts = [];
 
 const suggestions = [
   { icon: "spark", label: "Read this page and summarize the important points" },
@@ -246,6 +247,10 @@ chrome.runtime.onMessage.addListener((message) => {
       liveNodes = null;
       renderChat();
     }
+    if (liveDraft) {
+      liveDraft.content = "";
+      liveDraft.reasoning = "";
+    }
     // Clean up ALL steering flags so old intercepts don't keep re-ordering
     for (const msg of history) delete msg.steering;
     if (!liveDraft || liveDraft.activities.length === 0) {
@@ -275,7 +280,7 @@ chrome.runtime.onMessage.addListener((message) => {
     applyConversationContextState(payload.contextState);
     finalizeLiveActivities("done");
     const activities = cloneActivities(liveDraft?.activities);
-    addAssistantMessageOnce(payload.content, payload.reasoning, activities).catch(console.error);
+    addAssistantMessageOnce(payload.content, payload.reasoning, activities, message.runId).catch(console.error);
     headerSubtitle.textContent = "Completed";
   }
 
@@ -314,38 +319,45 @@ async function submitPrompt(rawContent) {
 
   const conversation = getActiveConversation();
   if (!conversation) await startNewChat();
-  history.push({ role: "user", content, createdAt: Date.now() });
-  autoTitleActiveConversation(content);
-  touchActiveConversation();
-  promptInput.value = "";
-  resizePrompt();
-  await persistConversations();
-  renderChat();
-  renderConversationList();
-
-  currentRunId = crypto.randomUUID();
-  doneEventContent = null;
-  liveDraft = { content: "", reasoning: "", activities: [] };
-  liveNodes = null;
-  setRunning(true);
-  ensureLiveAssistantRow();
-  ensureThinkingActivity(1, "Thinking…");
+  const runId = crypto.randomUUID();
+  const conversationId = activeConversationId;
+  currentRunId = runId;
 
   try {
+    history.push({ role: "user", content, createdAt: Date.now() });
+    autoTitleActiveConversation(content);
+    touchActiveConversation();
+    const historySnapshot = structuredClone(history);
+    const contextSnapshot = structuredClone(getActiveConversation()?.contextState || null);
+    promptInput.value = "";
+    resizePrompt();
+    await persistConversations();
+    renderChat();
+    renderConversationList();
+
+    doneEventContent = null;
+    liveDraft = { content: "", reasoning: "", activities: [] };
+    liveNodes = null;
+    setRunning(true);
+    ensureLiveAssistantRow();
+    ensureThinkingActivity(1, "Thinking…");
+
     const result = await sendMessage({
       type: "RUN_AGENT",
-      runId: currentRunId,
-      history,
-      contextState: getActiveConversation()?.contextState || null
+      runId,
+      history: historySnapshot,
+      contextState: contextSnapshot
     });
+    if (currentRunId !== runId || activeConversationId !== conversationId) return;
     const contextUpdated = applyConversationContextState(result?.contextState);
     if (result?.content && result.content !== doneEventContent) {
-      await addAssistantMessageOnce(result.content, result.reasoning);
+      await addAssistantMessageOnce(result.content, result.reasoning, liveDraft?.activities, runId);
     } else if (contextUpdated) {
       touchActiveConversation();
       await persistConversations();
     }
   } catch (error) {
+    if (currentRunId !== runId || activeConversationId !== conversationId) return;
     const message = normalizeError(error);
     finalizeLiveActivities("error");
     history.push({
@@ -360,11 +372,14 @@ async function submitPrompt(rawContent) {
     liveNodes = null;
     renderChat();
   } finally {
-    currentRunId = null;
-    liveDraft = null;
-    liveNodes = null;
-    setRunning(false);
-    renderConversationList();
+    if (currentRunId === runId) {
+      currentRunId = null;
+      liveDraft = null;
+      liveNodes = null;
+      setRunning(false);
+      renderConversationList();
+    }
+    await submitDeferredPrompt();
   }
 }
 
@@ -393,7 +408,20 @@ async function queuePrompt(rawContent, content) {
       runId,
       content
     });
-    if (!result?.accepted) throw new Error("Instruksi tidak diterima oleh run aktif.");
+    if (!result?.accepted && result?.retryAsNewRun) {
+      const messageIndex = history.indexOf(queuedHistoryMessage);
+      if (messageIndex >= 0) history.splice(messageIndex, 1);
+      deferredPrompts.push(content);
+      promptInput.value = removeSubmittedInput(promptInput.value, submittedValue);
+      resizePrompt();
+      touchActiveConversation();
+      renderChat();
+      renderConversationList();
+      await persistConversations();
+      headerSubtitle.textContent = "Current run finished; sending as a new message…";
+      return;
+    }
+    if (!result?.accepted) throw new Error("Instruction was not accepted by the active run.");
 
     delete queuedHistoryMessage.queueStatus;
     promptInput.value = removeSubmittedInput(promptInput.value, submittedValue);
@@ -418,7 +446,13 @@ async function queuePrompt(rawContent, content) {
   } finally {
     queueSubmissionPending = false;
     updateComposerControls();
+    await submitDeferredPrompt();
   }
+}
+
+async function submitDeferredPrompt() {
+  if (currentRunId || !deferredPrompts.length) return;
+  await submitPrompt(deferredPrompts.shift());
 }
 
 function removeSubmittedInput(currentValue, submittedValue) {
@@ -431,7 +465,7 @@ function removeSubmittedInput(currentValue, submittedValue) {
   return current;
 }
 
-async function addAssistantMessageOnce(content, reasoning = "", activities = liveDraft?.activities) {
+async function addAssistantMessageOnce(content, reasoning = "", activities = liveDraft?.activities, expectedRunId = currentRunId) {
   const text = String(content || "").trim();
   const trace = String(reasoning || liveDraft?.reasoning || "").trim();
   if (!text) return;
@@ -446,6 +480,7 @@ async function addAssistantMessageOnce(content, reasoning = "", activities = liv
   });
   touchActiveConversation();
   await persistConversations();
+  if (currentRunId && currentRunId !== expectedRunId) return;
   liveDraft = null;
   liveNodes = null;
   renderChat();

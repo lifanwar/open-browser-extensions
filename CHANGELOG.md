@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.1
+
+- Added queue hardening: in-run steering batches latest instructions, keeps uncommitted drafts as reference, and replans remaining tool calls.
+- Late instructions sent after a run finished are now retried as a new run instead of being dropped.
+- Guarded the sidepanel against stale runs and cleared draft reasoning when a queued instruction was applied.
+
 ## 1.6.0
 
 - Added credential encryption, SEARCH/EXTRACT tools, Network Debugger, credential reveal, and streaming with reasoning.

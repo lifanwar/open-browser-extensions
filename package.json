@@ -1,9 +1,9 @@
 {
   "name": "open-browser-agent-extension",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.6.1",
   "type": "module",
   "scripts": {
-    "check": "node tests/credential-storage.mjs && node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs && node tests/regressions.mjs"
+    "check": "node tests/credential-storage.mjs && node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs && node tests/regressions.mjs && node tests/queue-hardening.mjs"
   }
 }

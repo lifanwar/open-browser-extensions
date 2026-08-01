@@ -94,7 +94,7 @@ function dispatchServiceWorkerMessage(message, sender) {
       settings: { autoStartNetwork: false },
       emit: () => {}
     }),
-    /tidak mengirim respons untuk READ_PAGE/i
+    /did not send a response for READ_PAGE/i
   );
 }
 
