@@ -91,10 +91,10 @@ function dispatchServiceWorkerMessage(message, sender) {
   await assert.rejects(
     () => executeTool("read_page", {}, {
       targetTabId: 5,
-      settings: { autoStartNetwork: false },
+      settings: {},
       emit: () => {}
     }),
-    /tidak mengirim respons untuk READ_PAGE/i
+    /did not send a response for READ_PAGE/i
   );
 }
 

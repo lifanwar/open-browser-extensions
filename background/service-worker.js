@@ -1,4 +1,5 @@
 import { runAgent } from "./agent.js";
+import { getNetworkState, startNetwork, stopNetwork } from "./tools/network-debugger.js";
 import { exportSettings, importSettings, loadRunSettings, loadSettings, saveSettings } from "./config.js";
 import {
   CREDENTIAL_FIELDS,
@@ -42,8 +43,18 @@ async function handleMessage(message, sender) {
       return startRun(message);
     case "QUEUE_AGENT_MESSAGE":
       return queueRunMessage(message.runId, message.content);
+    case "GET_NETWORK_STATE":
+      assertSidepanelSender(sender, "Network controls");
+      return getNetworkState((await resolveControlTab(message.tabId)).id);
+    case "SET_NETWORK_CAPTURE": {
+      assertSidepanelSender(sender, "Network controls");
+      const tab = await resolveControlTab(message.tabId);
+      return message.enabled
+        ? startNetwork(tab.id, { captureBodies: message.captureBodies !== false })
+        : stopNetwork(tab.id);
+    }
     case "REVEAL_CREDENTIAL":
-      assertCredentialRevealSender(sender);
+      assertSidepanelSender(sender, "Credential reveal");
       return revealCredential(message.field);
     case "CANCEL_AGENT":
       return cancelRun(message.runId);
@@ -107,7 +118,9 @@ async function startRun(message) {
 function queueRunMessage(runId, rawContent) {
   const id = String(runId || "");
   const run = activeRuns.get(id);
-  if (!run) throw new Error("No active run found. Instruction was not queued.");
+  if (!run || !run.acceptingMessages || run.controller.signal.aborted) {
+    return { accepted: false, runId: id, retryAsNewRun: true };
+  }
 
   const queueLength = enqueueRunMessage(run, rawContent);
   return { accepted: true, runId: id, queueLength };
@@ -120,11 +133,26 @@ function cancelRun(runId) {
   return { cancelled: true };
 }
 
-function assertCredentialRevealSender(sender) {
+function assertSidepanelSender(sender, action) {
   const sidepanelUrl = chrome.runtime.getURL("sidepanel/");
   if (sender?.id !== chrome.runtime.id || sender?.tab || !String(sender?.url || "").startsWith(sidepanelUrl)) {
-    throw new Error("Credential reveal is only allowed from the extension side panel.");
+    throw new Error(`${action} is only allowed from the extension side panel.`);
   }
+}
+
+async function resolveControlTab(rawTabId) {
+  const tabId = Number(rawTabId);
+  let tab = null;
+  if (Number.isInteger(tabId) && tabId > 0) {
+    tab = await chrome.tabs.get(tabId);
+  } else {
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    tab = tabs.find((item) => /^https?:\/\//i.test(item.url || "")) || null;
+  }
+  if (!tab?.id || !/^https?:\/\//i.test(tab.url || "")) {
+    throw new Error("Network capture requires an active http/https tab.");
+  }
+  return tab;
 }
 
 async function revealCredential(field) {

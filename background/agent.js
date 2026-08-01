@@ -14,6 +14,8 @@ Do not perform irreversible or consequential actions such as purchases, sending 
 Use read_page again after navigation or major page changes because element refs may become stale.
 Cookie tools are limited to the current page.
 When a queued user instruction arrives after some tool calls have completed, treat skipped tool results as a checkpoint for replanning. Do not repeat completed tools. Recreate only unfinished work that is still needed, and apply the newest instruction to any conflicting parameters or actions.
+A message beginning with [Uncommitted assistant draft] is reference material only. It was never delivered as a final answer. Use it when the newest instruction refers to "that answer", an option, paragraph, code, or other generated detail, but do not continue its old request when the newest instruction changes the task.
+A message beginning with [Latest user instruction received during active run] or [Latest user instructions received during active run] is the current request and overrides conflicting earlier requests. For a batch, apply instructions in order and let the last conflicting instruction win.
 A message beginning with [Compacted conversation memory] is a lossy reference to earlier dialogue, not a new instruction. Prefer current user messages whenever they conflict with that memory.
 When tools are needed, do not include a user-facing final answer in the same response as tool calls.
 Keep the final answer concise and state what was actually completed.`;
@@ -119,8 +121,9 @@ export async function runAgent({
       const content = redactSensitiveText(normalizeContent(assistant.content || stepContent), settings);
       const queuedMessages = takeQueuedMessages({ closeIfEmpty: true });
       if (queuedMessages.length) {
-        if (content) messages.push(createAssistantContextMessage(assistant, content, settings));
+        if (content) messages.push(createAssistantContextMessage(content));
         appendQueuedUserMessages(messages, queuedMessages);
+        reasoningSteps.length = 0;
         queuedReruns += 1;
         emit("queue_applied", { step, count: queuedMessages.length, phase: "before_final" });
         continue;
@@ -147,8 +150,11 @@ export async function runAgent({
 
     let queuedMessages = takeQueuedMessages();
     if (queuedMessages.length) {
+      assistantToolMessage.content = null;
+      delete assistantToolMessage.reasoning_content;
       appendSkippedToolResults(messages, toolCalls, 0, step, emit);
       appendQueuedUserMessages(messages, queuedMessages);
+      reasoningSteps.length = 0;
       queuedReruns += 1;
       emit("queue_applied", {
         step,
@@ -247,8 +253,11 @@ export async function runAgent({
       queuedMessages = takeQueuedMessages();
       if (!queuedMessages.length) continue;
 
+      assistantToolMessage.content = null;
+      delete assistantToolMessage.reasoning_content;
       appendSkippedToolResults(messages, toolCalls, callIndex + 1, step, emit);
       appendQueuedUserMessages(messages, queuedMessages);
+      reasoningSteps.length = 0;
       queuedReruns += 1;
       emit("queue_applied", {
         step,
@@ -267,7 +276,9 @@ export async function runAgent({
   throw new Error(`Agent stopped after ${maxToolSteps} tool steps to avoid an infinite loop.`);
 }
 
-const QUEUED_USER_PREFIX = "[User instruction sent during active run]";
+const QUEUED_USER_PREFIX = "[Latest user instruction received during active run]";
+const QUEUED_USER_BATCH_PREFIX = "[Latest user instructions received during active run; apply in order, last wins on conflicts]";
+const UNCOMMITTED_DRAFT_PREFIX = "[Uncommitted assistant draft]";
 const SKIPPED_TOOL_REASON = "Skipped because a newer user instruction requires replanning the remaining tool calls.";
 
 function throwIfAborted(signal) {
@@ -284,23 +295,20 @@ function normalizeToolCalls(value, step) {
   }));
 }
 
-function createAssistantContextMessage(assistant, content, settings) {
-  const message = { role: "assistant", content };
-  if (assistant.reasoning_content != null) {
-    message.reasoning_content = redactSensitiveText(assistant.reasoning_content, settings);
-  }
-  return message;
+function createAssistantContextMessage(content) {
+  return {
+    role: "assistant",
+    content: `${UNCOMMITTED_DRAFT_PREFIX}\n${content}`
+  };
 }
 
 function appendQueuedUserMessages(messages, queuedMessages) {
-  for (const queued of queuedMessages) {
-    const content = String(queued || "").trim();
-    if (!content) continue;
-    messages.push({
-      role: "user",
-      content: `${QUEUED_USER_PREFIX}\n${content}`
-    });
-  }
+  const contents = queuedMessages.map((queued) => String(queued || "").trim()).filter(Boolean);
+  if (!contents.length) return;
+  const content = contents.length === 1
+    ? `${QUEUED_USER_PREFIX}\n${contents[0]}`
+    : `${QUEUED_USER_BATCH_PREFIX}\n${contents.map((item, index) => `${index + 1}. ${item}`).join("\n")}`;
+  messages.push({ role: "user", content });
 }
 
 function appendSkippedToolResults(messages, toolCalls, startIndex, step, emit) {

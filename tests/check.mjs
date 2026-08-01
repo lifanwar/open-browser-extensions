@@ -182,20 +182,32 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8"));
 assert.equal(manifest.manifest_version, 3);
-assert.equal(manifest.version, "1.5.2");
+assert.equal(manifest.version, "1.6.2");
+assert.equal(manifest.minimum_chrome_version, "118");
 assert.equal(manifest.background.type, "module");
 assert.ok(manifest.permissions.includes("debugger"));
 assert.ok(manifest.permissions.includes("sidePanel"));
 assert.equal(manifest.side_panel.default_path, "sidepanel/index.html");
+const readmeSource = fs.readFileSync(path.join(root, "README.md"), "utf8");
+assert.match(readmeSource, /alt="Chrome 118\+"/);
+assert.doesNotMatch(readmeSource, /Chrome 116\+/);
 
+const debuggerSessionSource = fs.readFileSync(path.join(root, "background/tools/debugger-session.js"), "utf8");
+assert.match(debuggerSessionSource, /"1\.3"/);
+assert.doesNotMatch(debuggerSessionSource, /attach\(\{ tabId \}, "0\.1"\)/);
 const networkSource = fs.readFileSync(path.join(root, "background/tools/network-debugger.js"), "utf8");
-assert.match(networkSource, /"1\.3"/);
-assert.doesNotMatch(networkSource, /attach\(\{ tabId \}, "0\.1"\)/);
+assert.match(networkSource, /from "\.\/debugger-session\.js"/);
+assert.doesNotMatch(networkSource, /chrome\.debugger\.attach/);
+assert.doesNotMatch(networkSource, /chrome\.debugger\.detach/);
+const executeScriptSource = fs.readFileSync(path.join(root, "background/tools/execute-script.js"), "utf8");
+assert.match(executeScriptSource, /buildExecutableExpression/);
+assert.match(executeScriptSource, /acquireDebugger/);
+assert.doesNotMatch(executeScriptSource, /chrome\.debugger\.attach/);
 
 const sidepanelHtml = fs.readFileSync(path.join(root, "sidepanel/index.html"), "utf8");
 assert.ok(sidepanelHtml.includes('<script src="syntax-highlighter.js"></script>'));
 assert.ok(sidepanelHtml.indexOf('syntax-highlighter.js') < sidepanelHtml.indexOf('app.js'));
-for (const id of ["conversationDrawer", "newConversationButton", "conversationList", "appearance", "streamResponses", "settingsBody", "allowCookieWrites"]) {
+for (const id of ["conversationDrawer", "newConversationButton", "conversationList", "appearance", "streamResponses", "settingsBody", "allowCookieWrites", "networkCaptureToggle", "networkCaptureStatus"]) {
   assert.ok(sidepanelHtml.includes(`id="${id}"`), `Missing UI ${id}`);
 }
 const sidepanelJs = fs.readFileSync(path.join(root, "sidepanel/app.js"), "utf8");
@@ -213,15 +225,20 @@ assert.ok(sidepanelJs.includes("QUEUE_AGENT_MESSAGE"));
 assert.ok(sidepanelJs.includes("updateComposerControls"));
 assert.ok(sidepanelJs.includes('queueStatus: "pending"'));
 assert.ok(sidepanelJs.includes("history.indexOf(queuedHistoryMessage)"));
-assert.ok(sidepanelJs.includes("contextState: getActiveConversation()?.contextState || null"));
+assert.ok(sidepanelJs.includes("const contextSnapshot = structuredClone(getActiveConversation()?.contextState || null)"));
+assert.ok(sidepanelJs.includes("contextState: contextSnapshot"));
 assert.ok(sidepanelJs.includes("applyConversationContextState"));
 assert.ok(!sidepanelJs.includes("promptInput.disabled = running"));
 assert.ok(!sidepanelHtml.includes('id="activityShell"'));
+assert.ok(!sidepanelHtml.includes('id="autoStartNetwork"'));
+assert.ok(sidepanelJs.includes("GET_NETWORK_STATE"));
+assert.ok(sidepanelJs.includes("SET_NETWORK_CAPTURE"));
 
 const agentSource = fs.readFileSync(path.join(root, "background/agent.js"), "utf8");
 assert.ok(agentSource.includes('emit("step_start"'));
 assert.ok(agentSource.includes("toolCallId"));
-assert.ok(agentSource.includes("[User instruction sent during active run]"));
+assert.ok(agentSource.includes("[Latest user instruction received during active run]"));
+assert.ok(agentSource.includes("[Uncommitted assistant draft]"));
 assert.ok(agentSource.includes("requires replanning the remaining tool calls"));
 assert.ok(agentSource.includes("Recreate only unfinished work"));
 assert.ok(agentSource.includes("replanRequired: true"));
@@ -233,6 +250,8 @@ assert.ok(!agentSource.includes("queuedMessagesRequestToolSkip"));
 
 const serviceWorkerSource = fs.readFileSync(path.join(root, "background/service-worker.js"), "utf8");
 assert.ok(serviceWorkerSource.includes('case "QUEUE_AGENT_MESSAGE"'));
+assert.ok(serviceWorkerSource.includes('case "GET_NETWORK_STATE"'));
+assert.ok(serviceWorkerSource.includes('case "SET_NETWORK_CAPTURE"'));
 assert.ok(serviceWorkerSource.includes("queue: []"));
 assert.ok(serviceWorkerSource.includes("let emitChain = Promise.resolve()"));
 assert.ok(serviceWorkerSource.includes("await emitChain"));

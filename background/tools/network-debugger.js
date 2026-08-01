@@ -1,70 +1,89 @@
+import {
+  acquireDebugger,
+  getDebuggerSessionState,
+  releaseDebugger,
+  sendDebuggerCommand
+} from "./debugger-session.js";
+
 const states = new Map();
+const NETWORK_CONSUMER = "network-capture";
 const MAX_ENTRIES = 300;
-const SUPPORTED_PROTOCOL_VERSIONS = ["1.3", "1.2", "1.1"];
 const SENSITIVE_HEADER_RE = /^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-csrf-token|x-xsrf-token)$/i;
 const SENSITIVE_KEY_RE = /(password|passwd|passcode|secret|token|api[_-]?key|authorization|cookie|session|credential|otp|totp)/i;
 
 function stateFor(tabId) {
   if (!states.has(tabId)) {
     states.set(tabId, {
-      attached: false,
       capturing: false,
       captureBodies: true,
       pageHost: "",
       entries: new Map(),
-      order: []
+      order: [],
+      operation: Promise.resolve()
     });
   }
   return states.get(tabId);
 }
 
+function enqueue(state, operation) {
+  const next = state.operation.then(operation, operation);
+  state.operation = next.catch(() => {});
+  return next;
+}
+
 export async function startNetwork(tabId, options = {}) {
   const state = stateFor(tabId);
-  const tab = await chrome.tabs.get(tabId);
-  state.pageHost = safeHost(tab.url);
-  state.captureBodies = options.captureBodies !== false;
+  return enqueue(state, async () => {
+    const tab = await chrome.tabs.get(tabId);
+    state.pageHost = safeHost(tab.url);
+    state.captureBodies = options.captureBodies !== false;
+    if (state.capturing && !getDebuggerSessionState(tabId).attached) state.capturing = false;
 
-  if (!state.attached) {
-    let attachedVersion = "";
-    let lastError = null;
-    for (const protocolVersion of SUPPORTED_PROTOCOL_VERSIONS) {
+    if (!state.capturing) {
+      await acquireDebugger(tabId, NETWORK_CONSUMER);
       try {
-        await chrome.debugger.attach({ tabId }, protocolVersion);
-        attachedVersion = protocolVersion;
-        state.attached = true;
-        state.protocolVersion = protocolVersion;
-        break;
+        await sendDebuggerCommand(tabId, "Network.enable", {
+          maxTotalBufferSize: 50_000_000,
+          maxResourceBufferSize: 10_000_000,
+          maxPostDataSize: 5_000_000
+        });
+        state.capturing = true;
       } catch (error) {
-        lastError = error;
-        const message = String(error?.message || error);
-        if (/Another debugger|already attached|target is already being debugged/i.test(message)) {
-          throw new Error("Tab is in use by DevTools or another debugger.");
-        }
-        if (!/protocol version|not supported|incompatible/i.test(message)) throw error;
+        await releaseDebugger(tabId, NETWORK_CONSUMER);
+        throw error;
       }
     }
-    if (!attachedVersion) {
-      throw new Error(`Debugger could not be attached. Tried CDP version(s): ${SUPPORTED_PROTOCOL_VERSIONS.join(", ")}. ${String(lastError?.message || lastError || "")}`);
-    }
-  }
 
-  await chrome.debugger.sendCommand({ tabId }, "Network.enable", {
-    maxTotalBufferSize: 50_000_000,
-    maxResourceBufferSize: 10_000_000,
-    maxPostDataSize: 5_000_000
+    return getNetworkState(tabId);
   });
-  state.capturing = true;
-  return { attached: true, capturing: true, host: state.pageHost, captureBodies: state.captureBodies, protocolVersion: state.protocolVersion };
 }
 
 export async function stopNetwork(tabId) {
   const state = stateFor(tabId);
-  if (state.attached) {
-    try { await chrome.debugger.detach({ tabId }); } catch { /* already detached */ }
-  }
-  state.attached = false;
-  state.capturing = false;
-  return { attached: false, capturing: false };
+  return enqueue(state, async () => {
+    if (state.capturing) {
+      try {
+        await sendDebuggerCommand(tabId, "Network.disable");
+      } catch {
+        // The target may already be detached; releasing the shared consumer still cleans local state.
+      }
+    }
+    state.capturing = false;
+    await releaseDebugger(tabId, NETWORK_CONSUMER);
+    return getNetworkState(tabId);
+  });
+}
+
+export function getNetworkState(tabId) {
+  const state = stateFor(tabId);
+  const session = getDebuggerSessionState(tabId);
+  return {
+    attached: session.attached,
+    capturing: state.capturing,
+    host: state.pageHost,
+    captureBodies: state.captureBodies,
+    protocolVersion: session.protocolVersion
+  };
 }
 
 export function clearNetwork(tabId) {
@@ -76,6 +95,7 @@ export function clearNetwork(tabId) {
 
 export function getNetwork(tabId, filters = {}, settings = {}) {
   const state = stateFor(tabId);
+  const session = getDebuggerSessionState(tabId);
   const limit = Math.max(1, Math.min(100, Number(filters.limit || 30)));
   const urlFilter = String(filters.url_filter || "").toLowerCase();
   const methodFilter = String(filters.method_filter || "").toUpperCase();
@@ -99,7 +119,7 @@ export function getNetwork(tabId, filters = {}, settings = {}) {
     }));
 
   return {
-    attached: state.attached,
+    attached: session.attached,
     capturing: state.capturing,
     currentHost: state.pageHost,
     sensitiveMode: allowSensitive,
@@ -164,12 +184,11 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
     entry.finishedAt = Date.now() / 1000;
     if (state.captureBodies && isTextual(entry.mimeType)) {
       try {
-        const body = await chrome.debugger.sendCommand(
-          { tabId: source.tabId },
+        const body = await sendDebuggerCommand(
+          source.tabId,
           "Network.getResponseBody",
           { requestId: params.requestId }
         );
-        // Ponytail: truncate at storage time so raw bodies don't stay unbounded in memory.
         const raw = body?.body;
         entry.responseBody = raw != null && raw.length > 200_000 ? `${raw.slice(0, 200_000)}\n[TRUNCATED]` : raw;
         entry.responseBodyBase64 = Boolean(body?.base64Encoded);
@@ -188,18 +207,10 @@ chrome.debugger.onEvent.addListener(async (source, method, params) => {
 chrome.debugger.onDetach.addListener((source) => {
   if (!source.tabId) return;
   const state = states.get(source.tabId);
-  if (state) {
-    state.attached = false;
-    state.capturing = false;
-  }
+  if (state) state.capturing = false;
 });
 
-// Ponytail: prune state when tab closes so states Map doesn't grow unbounded.
 chrome.tabs.onRemoved.addListener((tabId) => {
-  const state = states.get(tabId);
-  if (state?.attached) {
-    try { chrome.debugger.detach({ tabId }); } catch { /* already detached */ }
-  }
   states.delete(tabId);
 });
 

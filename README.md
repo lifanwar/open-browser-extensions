@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <img alt="Chrome 116+" src="https://img.shields.io/badge/Chrome-116%2B-4285F4?logo=googlechrome&logoColor=white">
+  <img alt="Chrome 118+" src="https://img.shields.io/badge/Chrome-118%2B-4285F4?logo=googlechrome&logoColor=white">
   <img alt="Manifest V3" src="https://img.shields.io/badge/Manifest-V3-5F6368">
   <img alt="OpenAI-compatible" src="https://img.shields.io/badge/API-OpenAI--compatible-10A37F">
   <img alt="No build step" src="https://img.shields.io/badge/Build-none-7C3AED">
@@ -53,7 +53,7 @@ Open Browser Agent turns Chrome's side panel into an AI workspace that can under
 - **Multiple conversations** — Create, switch, auto-title, save, and delete chats.
 - **Rich response rendering** — Stream Markdown, highlighted code, copy buttons, and scrollable tables.
 - **Light and dark themes** — Use system, light, or dark appearance.
-- **Clean source code** — Dependency-free HTML, CSS, and JavaScript with no bundling or obfuscation.
+- **Self-contained source** — No install-time or runtime package dependencies, bundling, or obfuscation; the pinned JavaScript parser is vendored with its license and provenance.
 
 ## 🧰 Built-in Tools
 
@@ -115,8 +115,8 @@ Search and Fetch support separate keys and models. Search provides Web or News r
 
 ### Browser Tool Controls
 
-- **Auto-start Network** — Start capture when a page is read.
-- **Capture response bodies** — Save textual responses for inspection.
+- **Network capture (current tab)** — Turn capture on or off manually. Reading a page never starts it automatically.
+- **Capture response bodies** — Save textual responses for inspection while capture is active.
 - **Raw values for current host** — Reveal sensitive values only for the active host.
 - **Allow cookie paste/delete** — Enable cookie write and management tools.
 
@@ -139,16 +139,16 @@ The extension requires broad browser permissions for automation and debugging. U
 
 ## 🧪 Development
 
-No build step is required. Load the source folder directly as an unpacked extension.
+No build step or package installation is required. Load the source folder directly as an unpacked extension. The Acorn parser is pinned under `vendor/acorn/`; see `THIRD_PARTY_NOTICES.md`.
 
-Run the regression checks with:
+Node.js is used only as the local test runner. Run the regression checks with:
 
 ```bash
 npm run check
 ```
 
-The test suite covers credential storage, browser-agent behavior, context compaction, and human-in-the-loop steering.
+The test suite covers credential storage, browser-agent behavior, context compaction, human-in-the-loop steering, shared debugger ownership, manual Network toggling, parser behavior, and zero-dependency packaging.
 
 ## 📄 License
 
-Licensed under the [GPL-3.0 License](LICENSE).
+Licensed under the [GPL-3.0 License](LICENSE). Vendored third-party notices are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

@@ -21,16 +21,8 @@ export async function executeTool(name, args, context) {
   switch (name) {
     case "executeScript":
       return executePageScript(tabId, args.code);
-    case "read_page": {
-      if (context.settings.autoStartNetwork) {
-        try {
-          await startNetwork(tabId, { captureBodies: context.settings.captureResponseBodies });
-        } catch (error) {
-          context.emit("status", `Network capture inactive: ${error.message}`);
-        }
-      }
+    case "read_page":
       return sendToPage(tabId, { type: "READ_PAGE" });
-    }
     case "click":
       return sendToPage(tabId, { type: "CLICK", ref: args.ref });
     case "fill":

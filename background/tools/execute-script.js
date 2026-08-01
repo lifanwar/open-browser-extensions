@@ -1,17 +1,22 @@
+import { acquireDebugger, releaseDebugger, sendDebuggerCommand } from "./debugger-session.js";
+import { buildExecutableExpression } from "./script-parser.js";
+
 const MAX_STRING = 10000;
 const MAX_ARRAY = 100;
 
 export async function executePageScript(tabId, code) {
-  let attached = false;
+  const consumer = Symbol("execute-script");
+  let acquired = false;
   try {
-    await chrome.debugger.attach({ tabId }, "1.3");
-    attached = true;
+    const expression = buildExecutableExpression(code);
+    await acquireDebugger(tabId, consumer);
+    acquired = true;
 
-    const response = await chrome.debugger.sendCommand(
-      { tabId },
+    const response = await sendDebuggerCommand(
+      tabId,
       "Runtime.evaluate",
       {
-        expression: `(async()=>{\nreturn ${String(code)}\n})()`,
+        expression,
         awaitPromise: true,
         returnByValue: true,
         userGesture: true
@@ -21,7 +26,9 @@ export async function executePageScript(tabId, code) {
     if (response?.exceptionDetails) {
       return {
         ok: false,
-        error: response.exceptionDetails.exception?.description || "Script execution failed"
+        error: response.exceptionDetails.exception?.description
+          || response.exceptionDetails.text
+          || "Script execution failed"
       };
     }
 
@@ -35,11 +42,7 @@ export async function executePageScript(tabId, code) {
       error: error?.message || String(error)
     };
   } finally {
-    if (attached) {
-      try {
-        await chrome.debugger.detach({ tabId });
-      } catch (_) {}
-    }
+    if (acquired) await releaseDebugger(tabId, consumer);
   }
 }
 

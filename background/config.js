@@ -18,7 +18,6 @@ export const DEFAULT_SETTINGS = Object.freeze({
   maxToolSteps: 20,
   streamResponses: true,
   appearance: "system",
-  autoStartNetwork: true,
   revealSensitiveOnCurrentHost: false,
   captureResponseBodies: true,
   allowCookieWrites: false,
@@ -208,8 +207,8 @@ function sanitizeSettings(settings = {}) {
   const fetchFormat = ["markdown", "text", "html"].includes(source.fetchFormat)
     ? source.fetchFormat
     : DEFAULT_SETTINGS.fetchFormat;
+  delete source.autoStartNetwork; // Remove the retired legacy setting from old snapshots.
   return {
-    ...source,
     baseUrl: String(source.baseUrl || "").trim(),
     model: String(source.model || "").trim(),
     searchConnectionMode,
@@ -226,7 +225,6 @@ function sanitizeSettings(settings = {}) {
     temperature: clampNumber(source.temperature, 0, 2, DEFAULT_SETTINGS.temperature),
     maxToolSteps: sanitizeMaxToolSteps(source.maxToolSteps),
     streamResponses: source.streamResponses !== false,
-    autoStartNetwork: source.autoStartNetwork !== false,
     revealSensitiveOnCurrentHost: Boolean(source.revealSensitiveOnCurrentHost),
     captureResponseBodies: source.captureResponseBodies !== false,
     allowCookieWrites: Boolean(source.allowCookieWrites),

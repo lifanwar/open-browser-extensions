@@ -34,6 +34,8 @@ const drawerBackdrop = document.querySelector("#drawerBackdrop");
 const closeDrawerButton = document.querySelector("#closeDrawer");
 const newConversationButton = document.querySelector("#newConversationButton");
 const conversationList = document.querySelector("#conversationList");
+const networkCaptureToggle = document.querySelector("#networkCaptureToggle");
+const networkCaptureStatus = document.querySelector("#networkCaptureStatus");
 
 const CONVERSATIONS_KEY = "agentConversations";
 const ACTIVE_CONVERSATION_KEY = "activeConversationId";
@@ -51,6 +53,7 @@ let doneEventContent = null;
 let liveDraft = null;
 let liveNodes = null;
 let queueSubmissionPending = false;
+const deferredPrompts = [];
 
 const suggestions = [
   { icon: "spark", label: "Read this page and summarize the important points" },
@@ -136,6 +139,7 @@ for (const id of [
 }
 
 pageChip.addEventListener("click", refreshActiveTab);
+networkCaptureToggle?.addEventListener("change", setNetworkCaptureFromToggle);
 
 settingsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -147,7 +151,6 @@ settingsForm.addEventListener("submit", async (event) => {
     maxToolSteps: Number(value("maxToolSteps")),
     appearance: value("appearance"),
     streamResponses: checked("streamResponses"),
-    autoStartNetwork: checked("autoStartNetwork"),
     captureResponseBodies: checked("captureResponseBodies"),
     allowCookieWrites: checked("allowCookieWrites"),
     revealSensitiveOnCurrentHost: checked("revealSensitiveOnCurrentHost"),
@@ -172,6 +175,14 @@ settingsForm.addEventListener("submit", async (event) => {
   }
   showSettingsValidation("");
   settings = await sendMessage({ type: "SAVE_SETTINGS", settings: next });
+  if (networkCaptureToggle?.checked && activeTab?.id) {
+    await sendMessage({
+      type: "SET_NETWORK_CAPTURE",
+      tabId: activeTab.id,
+      enabled: true,
+      captureBodies: settings.captureResponseBodies
+    }).catch(() => {});
+  }
   applyAppearance(settings.appearance);
   settingsDialog.close();
   updateChrome();
@@ -246,6 +257,10 @@ chrome.runtime.onMessage.addListener((message) => {
       liveNodes = null;
       renderChat();
     }
+    if (liveDraft) {
+      liveDraft.content = "";
+      liveDraft.reasoning = "";
+    }
     // Clean up ALL steering flags so old intercepts don't keep re-ordering
     for (const msg of history) delete msg.steering;
     if (!liveDraft || liveDraft.activities.length === 0) {
@@ -275,7 +290,7 @@ chrome.runtime.onMessage.addListener((message) => {
     applyConversationContextState(payload.contextState);
     finalizeLiveActivities("done");
     const activities = cloneActivities(liveDraft?.activities);
-    addAssistantMessageOnce(payload.content, payload.reasoning, activities).catch(console.error);
+    addAssistantMessageOnce(payload.content, payload.reasoning, activities, message.runId).catch(console.error);
     headerSubtitle.textContent = "Completed";
   }
 
@@ -314,38 +329,45 @@ async function submitPrompt(rawContent) {
 
   const conversation = getActiveConversation();
   if (!conversation) await startNewChat();
-  history.push({ role: "user", content, createdAt: Date.now() });
-  autoTitleActiveConversation(content);
-  touchActiveConversation();
-  promptInput.value = "";
-  resizePrompt();
-  await persistConversations();
-  renderChat();
-  renderConversationList();
-
-  currentRunId = crypto.randomUUID();
-  doneEventContent = null;
-  liveDraft = { content: "", reasoning: "", activities: [] };
-  liveNodes = null;
-  setRunning(true);
-  ensureLiveAssistantRow();
-  ensureThinkingActivity(1, "Thinking…");
+  const runId = crypto.randomUUID();
+  const conversationId = activeConversationId;
+  currentRunId = runId;
 
   try {
+    history.push({ role: "user", content, createdAt: Date.now() });
+    autoTitleActiveConversation(content);
+    touchActiveConversation();
+    const historySnapshot = structuredClone(history);
+    const contextSnapshot = structuredClone(getActiveConversation()?.contextState || null);
+    promptInput.value = "";
+    resizePrompt();
+    await persistConversations();
+    renderChat();
+    renderConversationList();
+
+    doneEventContent = null;
+    liveDraft = { content: "", reasoning: "", activities: [] };
+    liveNodes = null;
+    setRunning(true);
+    ensureLiveAssistantRow();
+    ensureThinkingActivity(1, "Thinking…");
+
     const result = await sendMessage({
       type: "RUN_AGENT",
-      runId: currentRunId,
-      history,
-      contextState: getActiveConversation()?.contextState || null
+      runId,
+      history: historySnapshot,
+      contextState: contextSnapshot
     });
+    if (currentRunId !== runId || activeConversationId !== conversationId) return;
     const contextUpdated = applyConversationContextState(result?.contextState);
     if (result?.content && result.content !== doneEventContent) {
-      await addAssistantMessageOnce(result.content, result.reasoning);
+      await addAssistantMessageOnce(result.content, result.reasoning, liveDraft?.activities, runId);
     } else if (contextUpdated) {
       touchActiveConversation();
       await persistConversations();
     }
   } catch (error) {
+    if (currentRunId !== runId || activeConversationId !== conversationId) return;
     const message = normalizeError(error);
     finalizeLiveActivities("error");
     history.push({
@@ -360,11 +382,14 @@ async function submitPrompt(rawContent) {
     liveNodes = null;
     renderChat();
   } finally {
-    currentRunId = null;
-    liveDraft = null;
-    liveNodes = null;
-    setRunning(false);
-    renderConversationList();
+    if (currentRunId === runId) {
+      currentRunId = null;
+      liveDraft = null;
+      liveNodes = null;
+      setRunning(false);
+      renderConversationList();
+    }
+    await submitDeferredPrompt();
   }
 }
 
@@ -393,7 +418,20 @@ async function queuePrompt(rawContent, content) {
       runId,
       content
     });
-    if (!result?.accepted) throw new Error("Instruksi tidak diterima oleh run aktif.");
+    if (!result?.accepted && result?.retryAsNewRun) {
+      const messageIndex = history.indexOf(queuedHistoryMessage);
+      if (messageIndex >= 0) history.splice(messageIndex, 1);
+      deferredPrompts.push(content);
+      promptInput.value = removeSubmittedInput(promptInput.value, submittedValue);
+      resizePrompt();
+      touchActiveConversation();
+      renderChat();
+      renderConversationList();
+      await persistConversations();
+      headerSubtitle.textContent = "Current run finished; sending as a new message…";
+      return;
+    }
+    if (!result?.accepted) throw new Error("Instruction was not accepted by the active run.");
 
     delete queuedHistoryMessage.queueStatus;
     promptInput.value = removeSubmittedInput(promptInput.value, submittedValue);
@@ -418,7 +456,13 @@ async function queuePrompt(rawContent, content) {
   } finally {
     queueSubmissionPending = false;
     updateComposerControls();
+    await submitDeferredPrompt();
   }
+}
+
+async function submitDeferredPrompt() {
+  if (currentRunId || !deferredPrompts.length) return;
+  await submitPrompt(deferredPrompts.shift());
 }
 
 function removeSubmittedInput(currentValue, submittedValue) {
@@ -431,7 +475,7 @@ function removeSubmittedInput(currentValue, submittedValue) {
   return current;
 }
 
-async function addAssistantMessageOnce(content, reasoning = "", activities = liveDraft?.activities) {
+async function addAssistantMessageOnce(content, reasoning = "", activities = liveDraft?.activities, expectedRunId = currentRunId) {
   const text = String(content || "").trim();
   const trace = String(reasoning || liveDraft?.reasoning || "").trim();
   if (!text) return;
@@ -446,6 +490,7 @@ async function addAssistantMessageOnce(content, reasoning = "", activities = liv
   });
   touchActiveConversation();
   await persistConversations();
+  if (currentRunId && currentRunId !== expectedRunId) return;
   liveDraft = null;
   liveNodes = null;
   renderChat();
@@ -1098,6 +1143,7 @@ function updateComposerControls() {
 function openSettings() {
   fillSettingsForm();
   showSettingsValidation("");
+  refreshNetworkCaptureToggle().catch(() => {});
   settingsDialog.showModal();
   requestAnimationFrame(() => {
     if (settingsBody) settingsBody.scrollTop = 0;
@@ -1113,7 +1159,6 @@ function fillSettingsForm() {
   setValue("maxToolSteps", settings.maxToolSteps);
   setValue("appearance", settings.appearance || "system");
   setChecked("streamResponses", settings.streamResponses !== false);
-  setChecked("autoStartNetwork", settings.autoStartNetwork);
   setChecked("captureResponseBodies", settings.captureResponseBodies);
   setChecked("revealSensitiveOnCurrentHost", settings.revealSensitiveOnCurrentHost);
   setChecked("allowCookieWrites", settings.allowCookieWrites);
@@ -1150,6 +1195,62 @@ async function refreshActiveTab() {
   activeTab = tabs.find((tab) => /^https?:\/\//i.test(tab.url || "")) || tabs[0] || null;
   pageChipText.textContent = activeTab ? hostname(activeTab.url) || activeTab.title || "Current page" : "No web page";
   updateChrome();
+  await refreshNetworkCaptureToggle().catch(() => {});
+}
+
+async function refreshNetworkCaptureToggle() {
+  if (!networkCaptureToggle) return;
+  const supported = Boolean(activeTab?.id && /^https?:\/\//i.test(activeTab.url || ""));
+  networkCaptureToggle.disabled = !supported;
+  if (!supported) {
+    networkCaptureToggle.checked = false;
+    if (networkCaptureStatus) networkCaptureStatus.textContent = "Unavailable: select an http/https tab.";
+    return;
+  }
+
+  const tabId = activeTab.id;
+  const state = await sendMessage({ type: "GET_NETWORK_STATE", tabId });
+  if (activeTab?.id !== tabId) return;
+  networkCaptureToggle.checked = Boolean(state.capturing);
+  if (networkCaptureStatus) {
+    networkCaptureStatus.textContent = state.capturing
+      ? `On for ${hostname(activeTab.url) || "current tab"}.`
+      : "Off. Turn on manually for the current tab.";
+  }
+}
+
+async function setNetworkCaptureFromToggle() {
+  if (!networkCaptureToggle || !activeTab?.id) return;
+  const desired = networkCaptureToggle.checked;
+  const tabId = activeTab.id;
+  const tabUrl = activeTab.url;
+  networkCaptureToggle.disabled = true;
+  if (networkCaptureStatus) networkCaptureStatus.textContent = desired ? "Turning on…" : "Turning off…";
+  try {
+    const state = await sendMessage({
+      type: "SET_NETWORK_CAPTURE",
+      tabId,
+      enabled: desired,
+      captureBodies: checked("captureResponseBodies")
+    });
+    if (activeTab?.id !== tabId) {
+      await refreshNetworkCaptureToggle().catch(() => {});
+      return;
+    }
+    networkCaptureToggle.checked = Boolean(state.capturing);
+    if (networkCaptureStatus) {
+      networkCaptureStatus.textContent = state.capturing
+        ? `On for ${hostname(tabUrl) || "current tab"}.`
+        : "Off. Turn on manually for the current tab.";
+    }
+    showSettingsValidation("");
+  } catch (error) {
+    networkCaptureToggle.checked = !desired;
+    if (networkCaptureStatus) networkCaptureStatus.textContent = desired ? "Could not start capture." : "Could not stop capture.";
+    showSettingsValidation(error?.message || String(error));
+  } finally {
+    if (activeTab?.id === tabId) networkCaptureToggle.disabled = false;
+  }
 }
 
 function activeTabSubtitle() {

@@ -53,7 +53,7 @@ export const TOOL_DEFINITIONS = [
   fn("switch_tab", "Switch the agent target to another tab returned by list_tabs.", {
     tab_id: { type: "integer" }
   }, ["tab_id"]),
-  fn("network_start", "Start DevTools Network capture on the target tab. read_page may already start it automatically."),
+  fn("network_start", "Turn DevTools Network capture on for the target tab. Capture stays active until network_stop is called."),
   fn("network_get", "Get recently captured Network requests. Sensitive values are revealed only when enabled by the user in Settings and only for the current page host.", {
     limit: { type: "integer", minimum: 1, maximum: 100 },
     url_filter: { type: "string" },
@@ -63,7 +63,7 @@ export const TOOL_DEFINITIONS = [
     include_bodies: { type: "boolean" }
   }),
   fn("network_clear", "Clear captured Network entries for the target tab."),
-  fn("network_stop", "Stop Network capture and detach the debugger from the target tab."),
+  fn("network_stop", "Turn Network capture off. The shared debugger detaches only when no other tool is using it."),
   fn("cookies_list", "List all cookies available to the current page, including HttpOnly and auth cookies. Values can be exported as JSON.", {
     include_values: { type: "boolean", description: "Include cookie values. Defaults to true; set to false to redact values." }
   }),
