@@ -3,7 +3,6 @@ import { redactSensitiveText, redactSensitiveValue } from "../credential-store.j
 const SEARCH_TIMEOUT_MS = 25_000;
 const MAX_SEARCH_RESULTS = 10;
 const MAX_QUERY_LENGTH = 2_000;
-const MAX_RESULT_TEXT = 24_000;
 const MAX_UI_SNIPPET = 700;
 
 export const WEB_SEARCH_TOOL_NAME = "web_search_tool";

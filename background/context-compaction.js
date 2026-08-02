@@ -1,6 +1,7 @@
 import { clearCredentialFields, redactSensitiveText, redactSensitiveValue } from "./credential-store.js";
 
 const COMPACTION_VERSION = 1;
+const COMPACTION_SETTING_OVERRIDES = Object.freeze({ streamResponses: false, temperature: 0.1 });
 const TRIGGER_CHARACTERS = 24_000;
 const RECENT_CHARACTERS = 12_000;
 const MIN_RECENT_MESSAGES = 8;
@@ -56,11 +57,7 @@ export async function prepareConversationContext({
   const recentMessages = pendingMessages.slice(splitIndex);
   emit("status", "Summarizing old context…");
 
-  const compactSettings = {
-    ...settings,
-    streamResponses: false,
-    temperature: 0.1
-  };
+  const compactSettings = { ...settings, ...COMPACTION_SETTING_OVERRIDES };
 
   try {
     const completion = await createCompletion({
