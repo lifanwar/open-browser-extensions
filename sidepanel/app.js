@@ -1143,7 +1143,7 @@ function updateComposerControls() {
 function openSettings() {
   fillSettingsForm();
   showSettingsValidation("");
-  refreshNetworkCaptureToggle().catch(() => {});
+  refreshActiveTab().catch(() => {});
   settingsDialog.showModal();
   requestAnimationFrame(() => {
     if (settingsBody) settingsBody.scrollTop = 0;
@@ -1220,27 +1220,25 @@ async function refreshNetworkCaptureToggle() {
 }
 
 async function setNetworkCaptureFromToggle() {
-  if (!networkCaptureToggle || !activeTab?.id) return;
+  if (!networkCaptureToggle) return;
   const desired = networkCaptureToggle.checked;
-  const tabId = activeTab.id;
-  const tabUrl = activeTab.url;
   networkCaptureToggle.disabled = true;
   if (networkCaptureStatus) networkCaptureStatus.textContent = desired ? "Turning on…" : "Turning off…";
   try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !/^https?:\/\//i.test(tab.url || "")) {
+      throw new Error("Network capture is only available for http/https tabs.");
+    }
     const state = await sendMessage({
       type: "SET_NETWORK_CAPTURE",
-      tabId,
+      tabId: tab.id,
       enabled: desired,
       captureBodies: checked("captureResponseBodies")
     });
-    if (activeTab?.id !== tabId) {
-      await refreshNetworkCaptureToggle().catch(() => {});
-      return;
-    }
     networkCaptureToggle.checked = Boolean(state.capturing);
     if (networkCaptureStatus) {
       networkCaptureStatus.textContent = state.capturing
-        ? `On for ${hostname(tabUrl) || "current tab"}.`
+        ? `On for ${hostname(tab.url) || "current tab"}.`
         : "Off. Turn on manually for the current tab.";
     }
     showSettingsValidation("");
@@ -1249,7 +1247,9 @@ async function setNetworkCaptureFromToggle() {
     if (networkCaptureStatus) networkCaptureStatus.textContent = desired ? "Could not start capture." : "Could not stop capture.";
     showSettingsValidation(error?.message || String(error));
   } finally {
-    if (activeTab?.id === tabId) networkCaptureToggle.disabled = false;
+    await refreshActiveTab().catch(() => {
+      networkCaptureToggle.disabled = false;
+    });
   }
 }
 

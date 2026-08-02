@@ -4,6 +4,6 @@
   "version": "1.6.2",
   "type": "module",
   "scripts": {
-    "check": "node tests/zero-dependency.mjs && node tests/credential-storage.mjs && node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs && node tests/regressions.mjs && node tests/queue-hardening.mjs && node tests/script-parser.mjs && node tests/debugger-session.mjs && node tests/network-toggle.mjs"
+    "check": "node tests/zero-dependency.mjs && node tests/credential-storage.mjs && node tests/check.mjs && node tests/context-compaction.mjs && node tests/human-in-loop.mjs && node tests/regressions.mjs && node tests/queue-hardening.mjs && node tests/script-parser.mjs && node tests/debugger-session.mjs && node tests/network-toggle.mjs && node tests/network-toggle-ui.mjs"
   }
 }

@@ -8,6 +8,7 @@
 - Added automatic AST-based JavaScript handling for expressions, declarations, multi-statement scripts, object literals, comments, trailing semicolons, and top-level `await`.
 - Vendored Acorn 8.15.0 with MIT license, provenance, and checksum while keeping zero install/runtime dependencies.
 - Added Node-only regression tests for debugger races, toggle state, parser edge cases, cleanup failures, and packaging risks.
+- Fixed stale tab state in the Network capture toggle by querying the active tab at click time and refreshing the UI on Settings open.
 
 ## 1.6.1
 
