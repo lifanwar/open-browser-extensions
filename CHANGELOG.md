@@ -1,14 +1,12 @@
 # Changelog
 
-## 1.6.2 (2026-08-01)
+## 1.6.2
 
-- Removed automatic Network capture from `read_page` and added a live per-tab ON/OFF switch.
-- Fixed setting leak: removed retired `autoStartNetwork` property from sanitized public settings.
-- Added one shared debugger session manager so Network capture and `executeScript` do not attach twice to the same tab.
-- Added automatic AST-based JavaScript handling for expressions, declarations, multi-statement scripts, object literals, comments, trailing semicolons, and top-level `await`.
-- Vendored Acorn 8.15.0 with MIT license, provenance, and checksum while keeping zero install/runtime dependencies.
-- Added Node-only regression tests for debugger races, toggle state, parser edge cases, cleanup failures, and packaging risks.
-- Fixed stale tab state in the Network capture toggle by querying the active tab at click time and refreshing the UI on Settings open.
+- Network capture is now manual: a live per-tab ON/OFF switch replaces auto-start; the toggle always targets the currently active tab.
+- One shared debugger session prevents double-attaching on Network capture and `executeScript`.
+- Automatic AST-based JavaScript handling (via vendored Acorn 8.15.0, zero install deps) for expressions, statements, object literals, comments, trailing semicolons, and top-level `await`.
+- Fixed stale tab state in the capture toggle.
+- Added Node regression tests for debugger races, toggle state, parser edge cases, cleanup, and packaging.
 
 ## 1.6.1
 
